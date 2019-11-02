@@ -77,6 +77,15 @@ void atomic_add(
         ;
 }
 
+void atomic_add(
+    Spectrum&                           spectrum,
+    const Spectrum&                     value,
+    std::mutex&                         spectrum_mutex)
+{
+    std::lock_guard<std::mutex> guard(spectrum_mutex);
+    spectrum += value;
+}
+
 inline float logistic(float x)
 {
     return 1.0f / (1.0f + std::exp(-x));
@@ -134,10 +143,17 @@ struct VisualizerNode
 
 QuadTreeNode::QuadTreeNode(
     const bool                          create_children,
-    const float                         radiance_sum)
+    const float                         radiance_sum,
+    const Spectrum                      radiance_spectrum_sum,
+    const Spectrum                      radiance_estimate)
     : m_is_leaf(!create_children)
     , m_current_iter_radiance_sum(radiance_sum)
     , m_previous_iter_radiance_sum(radiance_sum)
+    , m_current_iter_radiance_spectrum(radiance_spectrum_sum)
+    , m_previour_iter_radiance_spectrum(radiance_spectrum_sum)
+    , m_radiance(radiance_estimate)
+    , m_current_iter_sample_weight(0.0f)
+    , m_previous_iter_sample_weight(0.0f)
 {   
     if(create_children)
     {
@@ -152,6 +168,11 @@ QuadTreeNode::QuadTreeNode(const QuadTreeNode& other)
     : m_current_iter_radiance_sum(other.m_current_iter_radiance_sum.load(std::memory_order_relaxed))
     , m_previous_iter_radiance_sum(other.m_previous_iter_radiance_sum)
     , m_is_leaf(other.m_is_leaf)
+    , m_radiance(other.m_radiance)
+    , m_current_iter_sample_weight(other.m_current_iter_sample_weight.load(std::memory_order_relaxed))
+    , m_previous_iter_sample_weight(other.m_previous_iter_sample_weight)
+    , m_current_iter_radiance_spectrum(other.m_current_iter_radiance_spectrum)
+    , m_previour_iter_radiance_spectrum(other.m_previour_iter_radiance_spectrum)
 {   
     if(!other.m_is_leaf)
     {
@@ -164,18 +185,25 @@ QuadTreeNode::QuadTreeNode(const QuadTreeNode& other)
 
 void QuadTreeNode::add_radiance(
     Vector2f&                           direction,
-    const float                         radiance)
+    const float                         radiance,
+    const Spectrum&                     radiance_spectrum)
 {
     if(m_is_leaf)
+    {
         atomic_add(m_current_iter_radiance_sum, radiance);
+        atomic_add(m_current_iter_radiance_spectrum, radiance_spectrum, m_spectrum_mutex);
+        atomic_add(m_current_iter_sample_weight, 1.0f);
+    }
     else
-        choose_node(direction)->add_radiance(direction, radiance);
+        choose_node(direction)->add_radiance(direction, radiance, radiance_spectrum);
 }
 
 void QuadTreeNode::add_radiance(
     const AABB2f&                       splat_aabb,
     const AABB2f&                       node_aabb,
-    const float                         radiance)
+    const float                         radiance,
+    const Spectrum&                     radiance_spectrum,
+    const float                         sample_weight)
 {
     const AABB2f intersection_aabb(AABB2f::intersect(splat_aabb, node_aabb));
 
@@ -190,22 +218,24 @@ void QuadTreeNode::add_radiance(
     if(m_is_leaf)
     {
         atomic_add(m_current_iter_radiance_sum, radiance * intersection_volume);
+        atomic_add(m_current_iter_radiance_spectrum, radiance_spectrum * intersection_volume, m_spectrum_mutex);
+        atomic_add(m_current_iter_sample_weight, sample_weight * intersection_volume);
     }
     else
     {
         // Create each child's AABB and recursively add radiance.
         const Vector2f node_size = node_aabb.extent();
         AABB2f child_aabb(node_aabb.min, node_aabb.min + 0.5f * node_size);
-        m_upper_left_node->add_radiance(splat_aabb, child_aabb, radiance);
+        m_upper_left_node->add_radiance(splat_aabb, child_aabb, radiance, radiance_spectrum, sample_weight);
         
         child_aabb.translate(Vector2f(0.5f * node_size.x, 0.0f));
-        m_upper_right_node->add_radiance(splat_aabb, child_aabb, radiance);
+        m_upper_right_node->add_radiance(splat_aabb, child_aabb, radiance, radiance_spectrum, sample_weight);
 
         child_aabb.translate(Vector2f(0.0f, 0.5f * node_size.x));
-        m_lower_right_node->add_radiance(splat_aabb, child_aabb, radiance);
+        m_lower_right_node->add_radiance(splat_aabb, child_aabb, radiance, radiance_spectrum, sample_weight);
 
         child_aabb.translate(Vector2f(-0.5f * node_size.x, 0.0f));
-        m_lower_left_node->add_radiance(splat_aabb, child_aabb, radiance);
+        m_lower_left_node->add_radiance(splat_aabb, child_aabb, radiance, radiance_spectrum, sample_weight);
     }
 }
 
@@ -243,14 +273,31 @@ float QuadTreeNode::build_radiance_sums()
     if(m_is_leaf)
     {
         m_previous_iter_radiance_sum = m_current_iter_radiance_sum.load(std::memory_order_relaxed);
+        m_previour_iter_radiance_spectrum = m_current_iter_radiance_spectrum;
+        m_previous_iter_sample_weight = m_current_iter_sample_weight.load(std::memory_order_relaxed);
         return m_previous_iter_radiance_sum;
     }
 
     m_previous_iter_radiance_sum = 0.0f;
+    m_previous_iter_sample_weight = 0.0f;
+    m_previour_iter_radiance_spectrum = Spectrum(0.0f);
+
     m_previous_iter_radiance_sum += m_upper_left_node->build_radiance_sums();
+    m_previour_iter_radiance_spectrum += m_upper_left_node->m_previour_iter_radiance_spectrum;
+    m_previous_iter_sample_weight += m_upper_left_node->m_previous_iter_sample_weight;
+
     m_previous_iter_radiance_sum += m_upper_right_node->build_radiance_sums();
+    m_previour_iter_radiance_spectrum += m_upper_right_node->m_previour_iter_radiance_spectrum;
+    m_previous_iter_sample_weight += m_upper_right_node->m_previous_iter_sample_weight;
+
     m_previous_iter_radiance_sum += m_lower_right_node->build_radiance_sums();
+    m_previour_iter_radiance_spectrum += m_lower_right_node->m_previour_iter_radiance_spectrum;
+    m_previous_iter_sample_weight += m_lower_right_node->m_previous_iter_sample_weight;
+
     m_previous_iter_radiance_sum += m_lower_left_node->build_radiance_sums();
+    m_previour_iter_radiance_spectrum += m_lower_left_node->m_previour_iter_radiance_spectrum;
+    m_previous_iter_sample_weight += m_lower_left_node->m_previous_iter_sample_weight;
+
     return m_previous_iter_radiance_sum;
 }
 
@@ -262,7 +309,9 @@ void QuadTreeNode::restructure(
     const float                         subdiv_threshold,
     std::vector<
       std::pair<float, float>>*         sorted_energy_ratios,
-    const size_t                        depth)
+    const float                         sample_weight,
+    const size_t                        depth,
+    bool                                calculate_estimate)
 {   
     const float fraction = m_previous_iter_radiance_sum / total_radiance_sum;
 
@@ -274,17 +323,21 @@ void QuadTreeNode::restructure(
             // Create new children.
             m_is_leaf = false;
             const float quarter_sum = 0.25f * m_previous_iter_radiance_sum;
-            m_upper_left_node.reset(new QuadTreeNode(false, quarter_sum));
-            m_upper_right_node.reset(new QuadTreeNode(false, quarter_sum));
-            m_lower_right_node.reset(new QuadTreeNode(false, quarter_sum));
-            m_lower_left_node.reset(new QuadTreeNode(false, quarter_sum));
+            const Spectrum quarter_spectrum = 0.25f * m_previour_iter_radiance_spectrum;
+            const float rcp_sample_weight = m_previous_iter_sample_weight > 0.0f ? 1.0f / m_previous_iter_sample_weight : 0.0f;
+            const Spectrum radiance_estimate = calculate_estimate ? m_previour_iter_radiance_spectrum * rcp_sample_weight : m_radiance;
+            calculate_estimate = false;
+            m_upper_left_node.reset(new QuadTreeNode(false, quarter_sum, quarter_spectrum, radiance_estimate));
+            m_upper_right_node.reset(new QuadTreeNode(false, quarter_sum, quarter_spectrum, radiance_estimate));
+            m_lower_right_node.reset(new QuadTreeNode(false, quarter_sum, quarter_spectrum, radiance_estimate));
+            m_lower_left_node.reset(new QuadTreeNode(false, quarter_sum, quarter_spectrum, radiance_estimate));
         }
 
         // Recursively ensure children satisfy subdivision criterion.
-        m_upper_left_node->restructure(total_radiance_sum, subdiv_threshold, sorted_energy_ratios, depth + 1);
-        m_upper_right_node->restructure(total_radiance_sum, subdiv_threshold, sorted_energy_ratios, depth + 1);
-        m_lower_right_node->restructure(total_radiance_sum, subdiv_threshold, sorted_energy_ratios, depth + 1);
-        m_lower_left_node->restructure(total_radiance_sum, subdiv_threshold, sorted_energy_ratios, depth + 1);            
+        m_upper_left_node->restructure(total_radiance_sum, subdiv_threshold, sorted_energy_ratios, sample_weight, depth + 1, calculate_estimate);
+        m_upper_right_node->restructure(total_radiance_sum, subdiv_threshold, sorted_energy_ratios, sample_weight, depth + 1, calculate_estimate);
+        m_lower_right_node->restructure(total_radiance_sum, subdiv_threshold, sorted_energy_ratios, sample_weight, depth + 1, calculate_estimate);
+        m_lower_left_node->restructure(total_radiance_sum, subdiv_threshold, sorted_energy_ratios, sample_weight, depth + 1, calculate_estimate);
     }
     else if(!m_is_leaf)
     {
@@ -295,6 +348,9 @@ void QuadTreeNode::restructure(
         m_upper_right_node.reset(nullptr);
         m_lower_right_node.reset(nullptr);
         m_lower_left_node.reset(nullptr);
+
+        const float rcp_sample_weight = m_previous_iter_sample_weight > 0.0f ? 1.0f / m_previous_iter_sample_weight : 0.0f;
+        m_radiance = m_previour_iter_radiance_spectrum * rcp_sample_weight;
     }
 
     if(sorted_energy_ratios != nullptr && !m_is_leaf && m_upper_left_node->m_is_leaf)
@@ -308,6 +364,8 @@ void QuadTreeNode::restructure(
     }
 
     m_current_iter_radiance_sum.store(0.0f, std::memory_order_relaxed);
+    m_current_iter_radiance_spectrum = Spectrum(0.0f);
+    m_current_iter_sample_weight.store(0.0f, std::memory_order_relaxed);
 }
 
 void QuadTreeNode::reset()
@@ -320,6 +378,11 @@ void QuadTreeNode::reset()
     m_is_leaf = false;
     m_current_iter_radiance_sum.store(0.0f, std::memory_order_relaxed);
     m_previous_iter_radiance_sum = 0.0f;
+    m_current_iter_sample_weight.store(0.0f, std::memory_order_relaxed);
+    m_previous_iter_sample_weight = 0.0f;
+    m_current_iter_radiance_spectrum = Spectrum(0.0f);
+    m_previour_iter_radiance_spectrum = Spectrum(0.0f);
+    m_radiance = Spectrum(0.0f);
 }
 
 // Implementation of Algorithm 2 in Practical Path Guiding complementary PDF [Müller et.al. 2017]
@@ -427,6 +490,15 @@ const Vector2f QuadTreeNode::sample_recursive(
     }
 }
 
+Spectrum QuadTreeNode::radiance(
+    Vector2f&                           direction) const
+{
+    if (m_is_leaf)
+        return m_radiance;
+
+    return choose_node(direction)->radiance(direction);
+}
+
 size_t QuadTreeNode::depth(
     Vector2f&                           direction) const
 {
@@ -528,6 +600,7 @@ struct DTreeRecord
 {
     Vector3f                    direction;
     float                       radiance;
+    Spectrum                    radiance_spectrum;
     float                       wi_pdf;
     float                       bsdf_pdf;
     float                       d_tree_pdf;
@@ -570,6 +643,15 @@ DTree::DTree(
     m_atomic_flag.clear(std::memory_order_release);
 }
 
+Spectrum DTree::radiance(const Vector3f &direction) const
+{
+    if (m_previous_iter_sample_weight <= 0.0f || m_root_node.radiance_sum() <= 0.0f)
+        return Spectrum(-1.0f);
+
+    Vector2f d = cartesian_to_cylindrical(direction);
+    return m_root_node.radiance(d);
+}
+
 void DTree::record(
     const DTreeRecord&                  d_tree_record)
 {
@@ -582,13 +664,14 @@ void DTree::record(
     atomic_add(m_current_iter_sample_weight, d_tree_record.sample_weight);
 
     const float radiance = d_tree_record.radiance / d_tree_record.wi_pdf * d_tree_record.sample_weight;
+    const Spectrum radiance_spectrum = d_tree_record.radiance_spectrum * d_tree_record.sample_weight;
     
     Vector2f direction = cartesian_to_cylindrical(d_tree_record.direction);
 
     switch (m_parameters.m_directional_filter)
     {
     case DirectionalFilter::Nearest:
-        m_root_node.add_radiance(direction, radiance);
+        m_root_node.add_radiance(direction, radiance, radiance_spectrum);
         break;
 
     case DirectionalFilter::Box:
@@ -602,7 +685,8 @@ void DTree::record(
         if(!splat_aabb.is_valid())
             return;
 
-        m_root_node.add_radiance(splat_aabb, node_aabb, radiance / splat_aabb.volume());
+        const float rcp_volume = 1.0f / splat_aabb.volume();
+        m_root_node.add_radiance(splat_aabb, node_aabb, radiance * rcp_volume, radiance_spectrum * rcp_volume, rcp_volume);
         break;
     }
     default:
@@ -711,7 +795,8 @@ void DTree::restructure(
     m_root_node.restructure(
         radiance_sum, subdiv_threshold,
         m_parameters.m_guided_bounce_mode == GuidedBounceMode::Learn ?
-            &sorted_energy_ratios : nullptr);
+            &sorted_energy_ratios : nullptr,
+            m_previous_iter_sample_weight);
 
     // Determine what ScatteringMode should be assigned to directions sampled from this D-tree.
     if(m_parameters.m_guided_bounce_mode == GuidedBounceMode::Learn)
@@ -751,7 +836,7 @@ float DTree::mean() const
     if (m_previous_iter_sample_weight <= 0.0f)
         return 0.0f;
 
-    return m_root_node.radiance_sum() * (1.0f / m_previous_iter_sample_weight) * RcpFourPi<float>();
+    return m_root_node.radiance_sum() * (1.0f / m_previous_iter_sample_weight);// * RcpFourPi<float>();
 }
 
 float DTree::bsdf_sampling_fraction() const
@@ -978,6 +1063,7 @@ void STreeNode::record(
             DTreeRecord{
                 d_tree_record.direction,
                 d_tree_record.radiance,
+                d_tree_record.radiance_spectrum,
                 d_tree_record.wi_pdf,
                 d_tree_record.bsdf_pdf,
                 d_tree_record.d_tree_pdf,
@@ -1377,6 +1463,7 @@ void GPTVertex::record_to_tree(
     DTreeRecord d_tree_record{
         m_direction,
         average_value(incoming_radiance),
+        incoming_radiance,
         m_wi_pdf,
         m_bsdf_pdf,
         m_d_tree_pdf,

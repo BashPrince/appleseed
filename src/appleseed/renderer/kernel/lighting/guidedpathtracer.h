@@ -730,6 +730,8 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
     // Let the path visitor handle the scattering event.
     m_path_visitor.on_scatter(vertex, guided_path, sampling_fraction, enable_path_guiding);
 
+
+
     // Terminate the path if all scattering modes are disabled.
     if (vertex.m_scattering_modes == ScatteringMode::None)
         return false;
@@ -737,7 +739,7 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
     float wi_pdf, d_tree_pdf;
 
     PathGuidedSampler sampler(
-        enable_path_guiding,
+        m_sd_tree->is_final_iteration() ? false : enable_path_guiding,
         m_guided_bounce_mode,
         d_tree,
         sampling_fraction,
@@ -753,6 +755,35 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
         wi_pdf,
         d_tree_pdf
     );
+
+    if (false)//m_sd_tree->is_final_iteration())
+    {
+        sampler.sample(
+            sampling_context,
+            sample,
+            wi_pdf,
+            d_tree_pdf);
+
+        // Terminate the path if it gets absorbed.
+        if (sample.get_mode() == ScatteringMode::None)
+            return false;
+
+        // Update path throughput.
+        if (wi_pdf != BSDF::DiracDelta)
+            sample.m_value /= wi_pdf;
+        const Spectrum throughput = vertex.m_throughput * sample.m_value.m_beauty;
+
+        const Spectrum radiance = d_tree->radiance(sample.m_incoming.get_value());
+
+        if(radiance[0] <= 0.0f)
+            return false;
+
+        const Spectrum spectrum_radiance(radiance * throughput);
+
+        m_path_visitor.add_radiance(spectrum_radiance);
+
+        return false;
+    }
 
     if (!is_path_guided)
     {

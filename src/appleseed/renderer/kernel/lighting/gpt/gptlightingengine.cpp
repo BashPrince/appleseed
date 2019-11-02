@@ -267,6 +267,14 @@ namespace
                 return true;
             }
 
+            void add_radiance(const Spectrum& radiance)
+            {
+                m_path_radiance.add_emission(
+                    2,
+                    ScatteringMode::Diffuse,
+                    radiance);
+            }
+
           protected:
             const GPTParameters&                m_params;
             const BackwardLightSampler&         m_light_sampler;

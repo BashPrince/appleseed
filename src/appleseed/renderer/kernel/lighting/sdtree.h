@@ -44,6 +44,7 @@
 #include <fstream>
 #include <list>
 #include <memory>
+#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -71,8 +72,10 @@ class QuadTreeNode
 {
   public:
     QuadTreeNode(
-        const bool                          create_children,
-        const float                         radiance_sum = 0.0f);
+    const bool                          create_children,
+    const float                         radiance_sum = 0.0f,
+    const renderer::Spectrum            radiance_spectrum_sum = renderer::Spectrum(0.0f),
+    const renderer::Spectrum            radiance_estimate = renderer::Spectrum(0.0f));
 
     QuadTreeNode(
         const QuadTreeNode&                 other);
@@ -82,13 +85,16 @@ class QuadTreeNode
     // Recursively add radiance unfiltered.
     void add_radiance(
         foundation::Vector2f&               direction,
-        const float                         radiance);
+        const float                         radiance,
+        const renderer::Spectrum&           radiance_spectrum);
 
     // Recursively add radiance filtered.
     void add_radiance(
         const foundation::AABB2f&           splat_aabb,
         const foundation::AABB2f&           node_aabb,
-        const float                         radiance);
+        const float                         radiance,
+        const renderer::Spectrum&           radiance_spectrum,
+        const float                         sample_weight);
 
     size_t max_depth() const;
     size_t node_count() const;
@@ -99,11 +105,13 @@ class QuadTreeNode
 
     // Recursively restructure the D-tree based on the directional radiance distribution.
     void restructure(
-        const float                         total_radiance_sum,
-        const float                         subdiv_threshold,
-        std::vector<
-          std::pair<float, float>>*         sorted_energy_ratios,
-        const size_t                        depth = 1);
+    const float                         total_radiance_sum,
+    const float                         subdiv_threshold,
+    std::vector<
+      std::pair<float, float>>*         sorted_energy_ratios,
+    const float                         sample_weight,
+    const size_t                        depth = 1,
+    bool                                calculate_estimate = true);
 
     // Reset to state of an initial root node.
     void reset();
@@ -123,6 +131,9 @@ class QuadTreeNode
     void flatten(
         std::list<VisualizerNode>&          nodes) const;
 
+    renderer::Spectrum radiance(
+        foundation::Vector2f&               direction) const;
+
   private:
       // Recursively sample a direction based on the directional radiance distribution.
     const foundation::Vector2f sample_recursive(
@@ -139,11 +150,19 @@ class QuadTreeNode
 
     // The active radiance sum for recording incoming light.
     std::atomic<float>                  m_current_iter_radiance_sum;
+    renderer::Spectrum                  m_current_iter_radiance_spectrum;
+    std::atomic<float>                  m_current_iter_sample_weight;
 
     // The last completed iteration's radiance sum to guide the direction sampling.
     float                               m_previous_iter_radiance_sum;
+    renderer::Spectrum                  m_previour_iter_radiance_spectrum;
+    float                               m_previous_iter_sample_weight;
     
     bool                                m_is_leaf;
+
+    renderer::Spectrum                  m_radiance;
+
+    std::mutex                          m_spectrum_mutex;
 };
 
 // The D-tree interface.
@@ -192,6 +211,8 @@ class DTree
 
     void write_to_disk(
         std::ofstream&                      os) const;
+
+    renderer::Spectrum radiance(const foundation::Vector3f &direction) const;
 
   private:
     void acquire_optimization_spin_lock();
