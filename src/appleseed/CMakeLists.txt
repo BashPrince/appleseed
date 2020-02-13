@@ -33,7 +33,7 @@
 #--------------------------------------------------------------------------------------------------
 
 if (WITH_GPU)
-    include_directories(
+    include_directories (
         ${CUDA_INCLUDE_DIRS}
         ${OPTIX_INCLUDE_DIR}
     )
@@ -571,6 +571,7 @@ set (foundation_meta_tests_sources
     foundation/meta/tests/test_stlallocatortestbed.cpp
     foundation/meta/tests/test_stopwatch.cpp
     foundation/meta/tests/test_string.cpp
+    foundation/meta/tests/test_tea.cpp
     foundation/meta/tests/test_test.cpp
     foundation/meta/tests/test_thread.cpp
     foundation/meta/tests/test_tile.cpp
@@ -947,6 +948,7 @@ set (foundation_utility_sources
     foundation/utility/stopwatch.h
     foundation/utility/string.cpp
     foundation/utility/string.h
+    foundation/utility/tea.h
     foundation/utility/test.h
     foundation/utility/testutils.cpp
     foundation/utility/testutils.h
@@ -1046,7 +1048,6 @@ source_group ("renderer\\device" FILES
 )
 
 set (renderer_device_cpu_sources
-    renderer/device/cpu/cpurendercontext.cpp
     renderer/device/cpu/cpurendercontext.h
     renderer/device/cpu/cpurenderdevice.cpp
     renderer/device/cpu/cpurenderdevice.h
@@ -1110,6 +1111,7 @@ set (renderer_kernel_intersection_sources
     renderer/kernel/intersection/intersector.cpp
     renderer/kernel/intersection/intersector.h
     renderer/kernel/intersection/probevisitorbase.h
+    renderer/kernel/intersection/refining.h
     renderer/kernel/intersection/tracecontext.cpp
     renderer/kernel/intersection/tracecontext.h
     renderer/kernel/intersection/treerepository.h
@@ -1490,6 +1492,7 @@ set (renderer_meta_benchmarks_sources
     renderer/meta/benchmarks/benchmark_dynamicspectrum.cpp
     renderer/meta/benchmarks/benchmark_frame.cpp
     renderer/meta/benchmarks/benchmark_localsampleaccumulationbuffer.cpp
+    renderer/meta/benchmarks/benchmark_shadowterminator.cpp
     renderer/meta/benchmarks/benchmark_transformsequence.cpp
 )
 list (APPEND appleseed_sources
@@ -1620,6 +1623,8 @@ set (renderer_modeling_bsdf_sources
     renderer/modeling/bsdf/glassbsdf.h
     renderer/modeling/bsdf/glossybrdf.cpp
     renderer/modeling/bsdf/glossybrdf.h
+    renderer/modeling/bsdf/hairbsdf.cpp
+    renderer/modeling/bsdf/hairbsdf.h
     renderer/modeling/bsdf/ibsdffactory.h
     renderer/modeling/bsdf/kelemenbrdf.cpp
     renderer/modeling/bsdf/kelemenbrdf.h
@@ -1878,7 +1883,6 @@ set (renderer_modeling_input_sources
     renderer/modeling/input/inputbinder.h
     renderer/modeling/input/scalarsource.h
     renderer/modeling/input/sourceinputs.h
-    renderer/modeling/input/sourceinputs.cpp
     renderer/modeling/input/source.h
     renderer/modeling/input/symbol.h
     renderer/modeling/input/texturesource.cpp
@@ -2033,6 +2037,7 @@ set (renderer_modeling_project_sources
     renderer/modeling/project/projectformatrevision.h
     renderer/modeling/project/projecttracker.cpp
     renderer/modeling/project/projecttracker.h
+    renderer/modeling/project/renderingtimer.h
 )
 list (APPEND appleseed_sources
     ${renderer_modeling_project_sources}
@@ -2150,6 +2155,7 @@ set (renderer_modeling_texture_sources
     renderer/modeling/texture/texturefactoryregistrar.cpp
     renderer/modeling/texture/texturefactoryregistrar.h
     renderer/modeling/texture/texturetraits.h
+    renderer/modeling/texture/tileptr.h
 )
 list (APPEND appleseed_sources
     ${renderer_modeling_texture_sources}
@@ -2181,6 +2187,7 @@ set (renderer_utility_sources
     renderer/utility/seexpr.h
     renderer/utility/settingsparsing.cpp
     renderer/utility/settingsparsing.h
+    renderer/utility/shadowterminator.h
     renderer/utility/spectrumclamp.h
     renderer/utility/stochasticcast.h
     renderer/utility/testutils.cpp

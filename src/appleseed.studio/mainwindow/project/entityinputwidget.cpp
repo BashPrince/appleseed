@@ -31,9 +31,11 @@
 
 // appleseed.studio headers.
 #include "mainwindow/project/tools.h"
-#include "utility/doubleslider.h"
+
+// appleseed.qtcommon headers.
 #include "utility/interop.h"
-#include "utility/mousewheelfocuseventfilter.h"
+#include "widgets/doubleslider.h"
+#include "widgets/mousewheelfocuseventfilter.h"
 
 // appleseed.foundation headers.
 #include "foundation/utility/string.h"
@@ -49,6 +51,7 @@
 // Standard headers.
 #include <string>
 
+using namespace appleseed::qtcommon;
 using namespace foundation;
 
 namespace appleseed {

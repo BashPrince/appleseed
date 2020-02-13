@@ -36,12 +36,14 @@
 // appleseed.studio headers.
 #include "mainwindow/collapsiblesectionwidget.h"
 #include "mainwindow/configurationmanagerwindow.h"
-#include "mainwindow/project/projectmanager.h"
-#include "utility/foldablepanelwidget.h"
 #include "utility/inputwidgetproxies.h"
-#include "utility/miscellaneous.h"
-#include "utility/mousewheelfocuseventfilter.h"
 #include "utility/settingskeys.h"
+
+// appleseed.qtcommon headers.
+#include "project/projectmanager.h"
+#include "utility/miscellaneous.h"
+#include "widgets/foldablepanelwidget.h"
+#include "widgets/mousewheelfocuseventfilter.h"
 
 // appleseed.renderer headers.
 #include "renderer/api/project.h"
@@ -80,6 +82,7 @@
 #include <cassert>
 #include <cstddef>
 
+using namespace appleseed::qtcommon;
 using namespace foundation;
 using namespace renderer;
 
@@ -532,13 +535,11 @@ namespace
             constexpr int DefaultHours = 0;
 
             const int time_limit = m_params_metadata.get_path_optional<int>("progressive_frame_renderer.time_limit.default", -1);
+            const int hours = time_limit == -1 ? DefaultHours : time_limit / 3600;
+            const int minutes = time_limit == -1 ? DefaultMinutes : (time_limit - hours * 3600) / 60;
+            const int seconds = time_limit == -1 ? DefaultSeconds : time_limit - hours * 3600 - minutes * 60;
 
-            // Tramsform from seconds.
-            const unsigned int hours = time_limit == -1 ? DefaultHours : time_limit / 3600;
-            const unsigned int minutes = time_limit == -1 ? DefaultMinutes : (time_limit - hours * 3600) / 60;
-            const unsigned int seconds = time_limit == -1 ? DefaultSeconds : time_limit - hours * 3600 - minutes * 60;
-
-            set_widget("unlimited_time", true);
+            set_widget("unlimited_time", time_limit == -1);
             set_widget("hours", hours);
             set_widget("minutes", minutes);
             set_widget("seconds", seconds);
@@ -550,11 +551,10 @@ namespace
                 config.get_parameters().remove_path("progressive_frame_renderer.time_limit");
             else
             {
-                // Transform to seconds.
-                const unsigned int hours = get_widget<unsigned int>("hours");
-                const unsigned int minutes = get_widget<unsigned int>("minutes");
-                const unsigned int seconds = get_widget<unsigned int>("seconds");
-                const unsigned int time_limit = seconds + minutes * 60 + hours * 60 * 60;
+                const int hours = get_widget<int>("hours");
+                const int minutes = get_widget<int>("minutes");
+                const int seconds = get_widget<int>("seconds");
+                const int time_limit = hours * 60 * 60 + minutes * 60 + seconds;
                 set_config(config, "progressive_frame_renderer.time_limit", time_limit);
             }
         }
@@ -2290,8 +2290,7 @@ namespace
         QMessageBox msgbox(parent);
         msgbox.setWindowTitle("Save Changes?");
         msgbox.setIcon(QMessageBox::Question);
-        msgbox.setText("This configuration has been modified.");
-        msgbox.setInformativeText("Do you want to save your changes?");
+        msgbox.setText("This configuration has been modified.\n\nDo you want to save your changes?");
         msgbox.setStandardButtons(QMessageBox::Save | QMessageBox::Discard);
         msgbox.setDefaultButton(QMessageBox::Save);
         return msgbox.exec();

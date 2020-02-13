@@ -36,6 +36,7 @@
 // Standard headers.
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 
 namespace foundation
@@ -112,8 +113,8 @@ class MemoryReader
     MemoryReader& operator-=(const isize_t offset);
 
   private:
-    const uint8* const  m_base;
-    const uint8*        m_ptr;
+    const std::uint8_t* const   m_base;
+    const std::uint8_t*         m_ptr;
 };
 
 class MemoryWriter
@@ -129,13 +130,16 @@ class MemoryWriter
     size_t offset() const;
 
   private:
-    const uint8* const  m_base;
-    uint8*              m_ptr;
+    const std::uint8_t* const   m_base;
+    std::uint8_t*               m_ptr;
 };
 
 
 //
 // Memory-alignment related functions implementation.
+//
+// C-style casts below allow to cast `ptr` regardless of whether it is an integer or a pointer.
+// Neither static_cast<>() nor reinterpret_cast<>() has this ability.
 //
 
 template <typename T>
@@ -231,8 +235,8 @@ inline void shrink_to_fit(Container& container)
 //
 
 inline MemoryReader::MemoryReader(const void* source)
-  : m_base(reinterpret_cast<const uint8*>(source))
-  , m_ptr(reinterpret_cast<const uint8*>(source))
+  : m_base(reinterpret_cast<const std::uint8_t*>(source))
+  , m_ptr(reinterpret_cast<const std::uint8_t*>(source))
 {
 }
 
@@ -272,8 +276,8 @@ inline MemoryReader& MemoryReader::operator-=(const isize_t offset)
 //
 
 inline MemoryWriter::MemoryWriter(void* dest)
-  : m_base(reinterpret_cast<uint8*>(dest))
-  , m_ptr(reinterpret_cast<uint8*>(dest))
+  : m_base(reinterpret_cast<std::uint8_t*>(dest))
+  , m_ptr(reinterpret_cast<std::uint8_t*>(dest))
 {
 }
 

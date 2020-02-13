@@ -32,8 +32,10 @@
 
 // appleseed.studio headers.
 #include "mainwindow/project/entityeditorwindow.h"
-#include "utility/doubleslider.h"
+
+// appleseed.qtcommon headers.
 #include "utility/interop.h"
+#include "widgets/doubleslider.h"
 
 // appleseed.foundation headers.
 #include "foundation/utility/containers/dictionary.h"
@@ -49,6 +51,7 @@
 #include <cmath>
 #include <utility>
 
+using namespace appleseed::qtcommon;
 using namespace foundation;
 using namespace renderer;
 

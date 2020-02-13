@@ -33,7 +33,7 @@ shader as_standard_surface
 [[
     string help = "appleseed's standard material shader.",
     string icon = "asStandardSurface.png",
-    string URL = "https://appleseed.readthedocs.io/projects/appleseed-maya/en/latest/shaders/material/as_standard_surface.html#label-as-standard-surface",
+    string URL = "https://appleseed.readthedocs.io/projects/appleseed-maya/en/latest/shaders/material/as_standard_surface.html",
 
     string as_node_name = "asStandardSurface",
     string as_category = "shader",
@@ -695,10 +695,7 @@ shader as_standard_surface
                 vector vector_map = normalize(
                     (vector) in_anisotropy_map * 2.0 - 1.0);
 
-                tangent = normalize(
-                    vector_map[0] * Tn +
-                    vector_map[1] * Bn +
-                    vector_map[2] * Nn);
+                tangent = normalize(vector_map[0] * Tn + vector_map[1] * Bn);
             }
 
             if (in_anisotropy_angle > 0.0)
@@ -711,7 +708,7 @@ shader as_standard_surface
             }
         }
 
-        // Evaluate the BSDF(BRDF+BTDF) for monochromatic dielectric IOR only.
+        // Evaluate the BSDF (BRDF+BTDF) for monochromatic dielectric IOR only.
 
         if (in_fresnel_type == 0)
         {

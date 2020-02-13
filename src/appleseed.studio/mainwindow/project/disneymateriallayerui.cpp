@@ -32,11 +32,13 @@
 // appleseed.studio headers.
 #include "mainwindow/project/expressioneditorwindow.h"
 #include "mainwindow/project/tools.h"
-#include "utility/doubleslider.h"
+#include "utility/settingskeys.h"
+
+// appleseed.qtcommon headers.
 #include "utility/interop.h"
 #include "utility/miscellaneous.h"
-#include "utility/mousewheelfocuseventfilter.h"
-#include "utility/settingskeys.h"
+#include "widgets/doubleslider.h"
+#include "widgets/mousewheelfocuseventfilter.h"
 
 // appleseed.renderer headers.
 #include "renderer/api/material.h"
@@ -71,6 +73,7 @@
 #include <cstddef>
 #include <utility>
 
+using namespace appleseed::qtcommon;
 using namespace boost;
 using namespace foundation;
 using namespace renderer;
@@ -293,7 +296,7 @@ namespace
 
                 search_path =
                     QDir::cleanPath(
-                        QString::fromUtf8(s.get_root_path().c_str()) +
+                        QString(s.get_root_path().c_str()) +
                         QDir::separator() +
                         search_path);
             }
@@ -307,7 +310,7 @@ namespace
 
         if (s.has_root_path())
         {
-            const QDir root_dir(QString::fromUtf8(s.get_root_path().c_str()));
+            const QDir root_dir(s.get_root_path().c_str());
             assert(root_dir.isAbsolute());
 
             QString relative_path;

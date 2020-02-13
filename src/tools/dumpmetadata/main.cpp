@@ -29,7 +29,7 @@
 // dumpmetadata headers.
 #include "commandlinehandler.h"
 
-// appleseed.shared headers.
+// appleseed.common headers.
 #include "application/application.h"
 #include "application/superlogger.h"
 
@@ -56,6 +56,7 @@
 
 // appleseed.foundation headers.
 #include "foundation/core/appleseed.h"
+#include "foundation/platform/types.h"
 #include "foundation/utility/api/specializedapiarrays.h"
 #include "foundation/utility/containers/dictionary.h"
 #include "foundation/utility/indenter.h"
@@ -71,7 +72,7 @@
 #include <string>
 
 using namespace appleseed::dumpmetadata;
-using namespace appleseed::shared;
+using namespace appleseed::common;
 using namespace foundation;
 using namespace renderer;
 

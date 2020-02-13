@@ -30,7 +30,7 @@
 // Interface header.
 #include "inputwidgetproxies.h"
 
-// appleseed.studio headers.
+// appleseed.qtcommon headers.
 #include "utility/interop.h"
 
 // appleseed.renderer headers.
@@ -60,6 +60,7 @@
 // Standard headers.
 #include <vector>
 
+using namespace appleseed::qtcommon;
 using namespace foundation;
 using namespace renderer;
 

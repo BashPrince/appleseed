@@ -32,8 +32,10 @@
 // appleseed.studio headers.
 #include "mainwindow/rendering/lightpathspickinghandler.h"
 #include "mainwindow/rendering/lightpathswidget.h"
-#include "utility/miscellaneous.h"
 #include "utility/settingskeys.h"
+
+// appleseed.qtcommon headers.
+#include "utility/miscellaneous.h"
 
 // appleseed.renderer headers.
 #include "renderer/api/frame.h"
@@ -63,6 +65,7 @@
 // Standard headers.
 #include <cassert>
 
+using namespace appleseed::qtcommon;
 using namespace foundation;
 using namespace renderer;
 
@@ -279,7 +282,7 @@ void LightPathsTab::create_scrollarea()
 
     // Wrap the OpenGL widget in a scroll area.
     m_scroll_area = new QScrollArea();
-    m_scroll_area->setObjectName(QString::fromUtf8("render_widget_scrollarea"));
+    m_scroll_area->setObjectName("render_widget_scrollarea");
     m_scroll_area->setAlignment(Qt::AlignCenter);
     m_scroll_area->setWidget(gl_widget_wrapper);
 }

@@ -55,7 +55,6 @@
 #include "foundation/math/population.h"
 #include "foundation/math/scalar.h"
 #include "foundation/math/vector.h"
-#include "foundation/platform/types.h"
 #include "foundation/utility/containers/dictionary.h"
 #include "foundation/utility/statistics.h"
 
@@ -63,6 +62,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 
 // Forward declarations.
 namespace renderer  { class PixelContext; }
@@ -212,8 +212,8 @@ namespace
         const SPPMPassCallback&         m_pass_callback;
         const ForwardLightSampler&      m_forward_light_sampler;
         const BackwardLightSampler&     m_backward_light_sampler;
-        uint64                          m_path_count;
-        Population<uint64>              m_path_length;
+        std::uint64_t                   m_path_count;
+        Population<std::uint64_t>       m_path_length;
         knn::Answer<float>              m_answer;
 
         struct PathVisitor
@@ -250,7 +250,9 @@ namespace
             {
             }
 
-            void on_first_diffuse_bounce(const PathVertex& vertex)
+            void on_first_diffuse_bounce(
+                const PathVertex&           vertex,
+                const Spectrum&             albedo)
             {
             }
 
@@ -494,14 +496,17 @@ namespace
 #endif
 
                     // Evaluate the BSDF for this photon.
+                    BSDF::LocalGeometry local_geometry;
+                    local_geometry.m_shading_point = vertex.m_shading_point;
+                    local_geometry.m_geometric_normal = Vector3f(vertex.get_geometric_normal());
+                    local_geometry.m_shading_basis = Basis3f(vertex.get_shading_basis());
                     DirectShadingComponents bsdf_value;
                     const float bsdf_prob =
                         vertex.m_bsdf->evaluate(
                             vertex.m_bsdf_data,
                             false,                                      // not adjoint
                             true,                                       // multiply by |cos(incoming, normal)|
-                            Vector3f(vertex.get_geometric_normal()),
-                            Basis3f(vertex.get_shading_basis()),
+                            local_geometry,
                             Vector3f(vertex.m_outgoing.get_value()),    // toward the camera
                             normalize(photon.m_incoming),               // toward the light
                             ScatteringMode::Diffuse,
@@ -566,14 +571,17 @@ namespace
 #endif
 
                     // Evaluate the BSDF for this photon.
+                    BSDF::LocalGeometry local_geometry;
+                    local_geometry.m_shading_point = vertex.m_shading_point;
+                    local_geometry.m_geometric_normal = Vector3f(vertex.get_geometric_normal());
+                    local_geometry.m_shading_basis = Basis3f(vertex.get_shading_basis());
                     DirectShadingComponents bsdf_value;
                     const float bsdf_prob =
                         vertex.m_bsdf->evaluate(
                             vertex.m_bsdf_data,
                             false,                                      // not adjoint
                             true,                                       // multiply by |cos(incoming, normal)|
-                            Vector3f(vertex.get_geometric_normal()),
-                            Basis3f(vertex.get_shading_basis()),
+                            local_geometry,
                             Vector3f(vertex.m_outgoing.get_value()),    // toward the camera
                             normalize(photon.m_incoming),               // toward the light
                             ScatteringMode::Diffuse,
