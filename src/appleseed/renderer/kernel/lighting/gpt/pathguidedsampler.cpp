@@ -54,11 +54,12 @@ bool PathGuidedSampler::sample(
     DirectShadingComponents&        value,
     float&                          pdf) const
 {
-    BSDFSample bsdf_sample(&m_shading_point, Dual3f(outgoing));
+    BSDFSample bsdf_sample;
     float d_tree_pdf;
 
     sample(
         sampling_context,
+        outgoing,
         bsdf_sample,
         pdf,
         d_tree_pdf);
@@ -83,8 +84,7 @@ float PathGuidedSampler::evaluate(
         m_bsdf_data,
         false, // not adjoint
         true,
-        foundation::Vector3f(m_geometric_normal),
-        foundation::Basis3f(m_shading_basis),
+        m_local_geometry,
         outgoing,
         incoming,
         m_bsdf_sampling_modes,
@@ -96,6 +96,7 @@ float PathGuidedSampler::evaluate(
 
 bool PathGuidedSampler::sample(
     SamplingContext&                sampling_context,
+    const foundation::Dual3d&       outgoing,
     BSDFSample&                     bsdf_sample,
     float&                          wi_pdf,
     float&                          d_tree_pdf) const
@@ -107,6 +108,8 @@ bool PathGuidedSampler::sample(
             m_bsdf_data,
             false,
             true, // multiply by |cos(incoming, normal)|
+            m_local_geometry,
+            Dual3f(outgoing),
             m_bsdf_sampling_modes,
             bsdf_sample);
             
@@ -129,6 +132,8 @@ bool PathGuidedSampler::sample(
             m_bsdf_data,
             false,
             true, // multiply by |cos(incoming, normal)|
+            m_local_geometry,
+            Dual3f(outgoing),
             m_bsdf_sampling_modes,
             bsdf_sample);
 
@@ -170,13 +175,12 @@ bool PathGuidedSampler::sample(
             m_bsdf_data,
             false, // not adjoint
             true,  // multiply by |cos(incoming, normal)|
-            foundation::Vector3f(m_geometric_normal),
-            foundation::Basis3f(m_shading_basis),
-            foundation::Vector3f(bsdf_sample.m_outgoing.get_value()),
+            m_local_geometry,
+            foundation::Vector3f(outgoing.get_value()),
             bsdf_sample.m_incoming.get_value(),
             m_bsdf_sampling_modes,
             bsdf_sample.m_value);
-            
+
         bsdf_sample.set_to_scattering(scattering_mode, bsdf_pdf);
 
         wi_pdf = guided_path_extension_pdf(bsdf_sample.m_incoming.get_value(), bsdf_pdf, d_tree_pdf, true);

@@ -1406,7 +1406,7 @@ void STree::write_to_disk(
         return;
     }
 
-    const Camera* camera = m_scene.get_active_camera();
+    const Camera* camera = m_scene.get_render_data().m_active_camera;
 
     if (camera == nullptr)
     {

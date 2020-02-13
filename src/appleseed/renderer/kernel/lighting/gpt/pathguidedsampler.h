@@ -38,6 +38,7 @@ class PathGuidedSampler
 
     bool sample(
         SamplingContext&                sampling_context,
+        const foundation::Dual3d&       outgoing,
         BSDFSample&                     bsdf_sample,
         float&                          wi_pdf,
         float&                          d_tree_pdf) const;
