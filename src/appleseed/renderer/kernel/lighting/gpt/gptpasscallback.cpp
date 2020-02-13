@@ -49,7 +49,7 @@ using namespace std;
 namespace renderer
 {
 
-const size_t ImageBufferCapacity = 4;
+const size_t ImageBufferCapacity = 1;
 
 GPTPassCallback::GPTPassCallback(
         const GPTParameters&            params,

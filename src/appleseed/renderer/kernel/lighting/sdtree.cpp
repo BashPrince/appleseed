@@ -494,9 +494,9 @@ Spectrum QuadTreeNode::radiance(
     Vector2f&                           direction) const
 {
     if (m_is_leaf)
-        return m_radiance;
+        return m_previour_iter_radiance_spectrum;
 
-    return choose_node(direction)->radiance(direction);
+    return 4.0f * choose_node(direction)->radiance(direction);
 }
 
 size_t QuadTreeNode::depth(
@@ -649,7 +649,7 @@ Spectrum DTree::radiance(const Vector3f &direction) const
         return Spectrum(-1.0f);
 
     Vector2f d = cartesian_to_cylindrical(direction);
-    return m_root_node.radiance(d);
+    return m_root_node.radiance(d) / (FourPi<float>() * m_previous_iter_sample_weight);
 }
 
 void DTree::record(
@@ -664,8 +664,8 @@ void DTree::record(
     atomic_add(m_current_iter_sample_weight, d_tree_record.sample_weight);
 
     const float radiance = d_tree_record.radiance / d_tree_record.wi_pdf * d_tree_record.sample_weight;
-    const Spectrum radiance_spectrum = d_tree_record.radiance_spectrum * d_tree_record.sample_weight;
-    
+    const Spectrum radiance_spectrum = d_tree_record.radiance_spectrum / d_tree_record.wi_pdf * d_tree_record.sample_weight;
+
     Vector2f direction = cartesian_to_cylindrical(d_tree_record.direction);
 
     switch (m_parameters.m_directional_filter)
@@ -740,7 +740,6 @@ float DTree::pdf(
 void DTree::halve_sample_weight()
 {
     m_current_iter_sample_weight = 0.5f * m_current_iter_sample_weight.load(std::memory_order_relaxed);
-    m_previous_iter_sample_weight *= 0.5f;
 }
 
 size_t DTree::node_count() const
@@ -828,7 +827,7 @@ void DTree::restructure(
 
 float DTree::sample_weight() const
 {
-    return m_previous_iter_sample_weight;
+    return m_current_iter_sample_weight.load(std::memory_order_relaxed);
 }
 
 float DTree::mean() const

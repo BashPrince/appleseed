@@ -739,7 +739,7 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
     float wi_pdf, d_tree_pdf;
 
     PathGuidedSampler sampler(
-        m_sd_tree->is_final_iteration() ? false : enable_path_guiding,
+        /*m_sd_tree->is_final_iteration() ? false :*/ enable_path_guiding,
         m_guided_bounce_mode,
         d_tree,
         sampling_fraction,
@@ -756,13 +756,13 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
         d_tree_pdf
     );
 
-    if (false)//m_sd_tree->is_final_iteration())
+    if (m_sd_tree->is_final_iteration())
     {
-        sampler.sample(
-            sampling_context,
-            sample,
-            wi_pdf,
-            d_tree_pdf);
+        // sampler.sample(
+        //     sampling_context,
+        //     sample,
+        //     wi_pdf,
+        //     d_tree_pdf);
 
         // Terminate the path if it gets absorbed.
         if (sample.get_mode() == ScatteringMode::None)

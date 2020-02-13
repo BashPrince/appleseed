@@ -496,6 +496,10 @@ namespace
                     env_radiance *= mis_weight;
                 }
 
+                Spectrum unclamped_radiance = env_radiance;
+                Spectrum clamped_throughput = vertex.m_throughput;
+                clamp_contribution(clamped_throughput, 10.0f);
+
                 // Apply path throughput.
                 env_radiance *= vertex.m_throughput;
 
@@ -510,10 +514,9 @@ namespace
                     env_radiance);
 
                 if(!m_params.m_enable_ibl)
-                    guided_path.add_radiance(env_radiance);
+                    guided_path.add_radiance(unclamped_radiance * clamped_throughput);
                 else
-                    guided_path.add_indirect_radiance(env_radiance);
-
+                    guided_path.add_indirect_radiance(unclamped_radiance * clamped_throughput);
             }
 
             void on_hit(const PathVertex& vertex, GPTVertexPath& guided_path)
@@ -533,6 +536,10 @@ namespace
                     if (m_light_path_stream)
                         m_light_path_stream->hit_emitter(vertex, emitted_radiance);
 
+                    Spectrum unclamped_radiance = emitted_radiance;
+                    Spectrum clamped_throughput = vertex.m_throughput;
+                    clamp_contribution(clamped_throughput, 10.0f);
+
                     // Apply path throughput.
                     emitted_radiance *= vertex.m_throughput;
 
@@ -546,7 +553,7 @@ namespace
                         vertex.m_aov_mode,
                         emitted_radiance);
                     
-                    guided_path.add_indirect_radiance(emitted_radiance);
+                    guided_path.add_indirect_radiance(unclamped_radiance * clamped_throughput);
                 }
                 else
                 {
@@ -638,6 +645,10 @@ namespace
                     }
                 }
 
+                DirectShadingComponents unclamped_radiance = vertex_radiance;
+                Spectrum clamped_throughput = vertex.m_throughput;
+                clamp_contribution(clamped_throughput, 10.0f);
+
                 // Apply path throughput.
                 vertex_radiance *= vertex.m_throughput;
 
@@ -651,7 +662,7 @@ namespace
                     vertex.m_aov_mode,
                     vertex_radiance);
 
-                guided_path.add_radiance(vertex_radiance.m_beauty);
+                guided_path.add_radiance(unclamped_radiance.m_beauty * clamped_throughput);
             }
 
           private:
