@@ -52,12 +52,14 @@ namespace renderer
 const size_t ImageBufferCapacity = 4;
 
 GPTPassCallback::GPTPassCallback(
-        const GPTParameters&            params,
-        STree*                          sd_tree,
-        const size_t                    sample_budget,
-        const size_t                    max_passes)
+        const GPTParameters&                                params,
+        STree&                                              sd_tree,
+        VarianceTrackingShadingResultFrameBufferFactory&    framebuffer,
+        const size_t                                        sample_budget,
+        const size_t                                        max_passes)
   : m_params(params)
   , m_sd_tree(sd_tree)
+  , m_framebuffer(framebuffer)
   , m_passes_left_curr_iter(0)
   , m_passes_rendered(0)
   , m_last_extrapolated_variance(std::numeric_limits<float>::infinity())
@@ -80,9 +82,9 @@ void GPTPassCallback::release()
 }
 
 void GPTPassCallback::on_pass_begin(
-    const Frame&            frame,
-    JobQueue&               job_queue,
-    IAbortSwitch&           abort_switch)
+    const Frame&                                            frame,
+    JobQueue&                                               job_queue,
+    IAbortSwitch&                                           abort_switch)
 {
     if (m_passes_left_curr_iter > 0)
         return;
@@ -96,24 +98,24 @@ void GPTPassCallback::on_pass_begin(
     {
         m_passes_left_curr_iter = m_remaining_passes;
         m_is_final_iter = true;
-        m_sd_tree->start_final_iteration();
+        m_sd_tree.start_final_iteration();
     }
     
     if (!m_var_increase && m_iter > 0)
     {
         // Clear the frame and build the tree.
-        m_framebuffer->clear();
-        m_sd_tree->build(m_iter);
+        m_framebuffer.clear();
+        m_sd_tree.build(m_iter);
 
         switch (m_params.m_save_mode)
         {
         case SaveMode::All:
-            m_sd_tree->write_to_disk(m_iter, true);
+            m_sd_tree.write_to_disk(m_iter, true);
             break;
 
         case SaveMode::Final:
             if(m_is_final_iter)
-                m_sd_tree->write_to_disk(m_iter, false);
+                m_sd_tree.write_to_disk(m_iter, false);
             break;
         
         default:
@@ -125,9 +127,9 @@ void GPTPassCallback::on_pass_begin(
 }
 
 bool GPTPassCallback::on_pass_end(
-    const Frame&            frame,
-    JobQueue&               job_queue,
-    IAbortSwitch&           abort_switch)
+    const Frame&                                            frame,
+    JobQueue&                                               job_queue,
+    IAbortSwitch&                                           abort_switch)
 {
     ++m_passes_rendered;
     --m_passes_left_curr_iter;
@@ -135,7 +137,7 @@ bool GPTPassCallback::on_pass_end(
 
     if (m_passes_rendered >= m_max_passes || abort_switch.is_aborted())
     {
-        const float variance = m_framebuffer->estimator_variance();
+        const float variance = m_framebuffer.estimator_variance();
         RENDERER_LOG_INFO("Final iteration variance estimate: %s", pretty_scalar(variance, 7).c_str());
 
         if (m_params.m_iteration_progression == IterationProgression::Combine)
@@ -152,7 +154,7 @@ bool GPTPassCallback::on_pass_end(
         // Update the variance projection.
         const size_t remaining_passes_at_curr_iter_start = m_remaining_passes + m_num_passes_curr_iter;
         const size_t samples_rendered = m_passes_rendered * m_params.m_samples_per_pass;
-        const float variance = m_framebuffer->estimator_variance();
+        const float variance = m_framebuffer.estimator_variance();
         const float current_extraplolated_variance =
             variance * m_num_passes_curr_iter / remaining_passes_at_curr_iter_start;
 
@@ -178,15 +180,9 @@ bool GPTPassCallback::on_pass_end(
     return false;
 }
 
-void GPTPassCallback::set_framebuffer(
-    VarianceTrackingShadingResultFrameBufferFactory* framebuffer)
-{
-    m_framebuffer = framebuffer;
-}
-
 void GPTPassCallback::image_to_buffer(
-    const Image& image,
-    const float  inverse_variance)
+    const Image&                                            image,
+    const float                                             inverse_variance)
 {
     // Store rendered images.
     if (m_image_buffer.size() == ImageBufferCapacity)

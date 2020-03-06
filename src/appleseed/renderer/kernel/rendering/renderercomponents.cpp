@@ -231,10 +231,20 @@ bool RendererComponents::create_lighting_engine_factory()
 
         ParamArray uniform_pixel_renderer_params = get_child_and_inherit_globals(m_params, "uniform_pixel_renderer");
 
+        VarianceTrackingShadingResultFrameBufferFactory *variance_framebuffer =
+            dynamic_cast<VarianceTrackingShadingResultFrameBufferFactory *>(m_shading_result_framebuffer_factory.get());
+
+        if (variance_framebuffer == nullptr)
+        {
+            RENDERER_LOG_ERROR("cannot use guided path tracing without variance tracking shading result framebuffer.");
+            return false;
+        }
+
         m_pass_callback.reset(
             new GPTPassCallback(
                 gpt_parameters,
-                m_sd_tree.get(),
+                *m_sd_tree,
+                *variance_framebuffer,
                 uniform_pixel_renderer_params.get_required<size_t>("samples", 64),
                 m_params.get_optional<size_t>("passes", std::numeric_limits<size_t>::max())));
 
@@ -484,16 +494,12 @@ bool RendererComponents::create_pixel_renderer_factory()
 bool RendererComponents::create_shading_result_framebuffer_factory()
 {
     const std::string name = m_params.get_optional<std::string>("shading_result_framebuffer", "ephemeral");
-    GPTPassCallback *gpt_pass_callback = dynamic_cast<GPTPassCallback *>(m_pass_callback.get());
+    const std::string lighting_engine_name = m_params.get_required<std::string>("lighting_engine", "");
 
-    if (gpt_pass_callback != nullptr)
+    if (lighting_engine_name == "gpt")
     {
-        VarianceTrackingShadingResultFrameBufferFactory *framebuffer_factory =
-            new VarianceTrackingShadingResultFrameBufferFactory(m_frame);
-            
         m_shading_result_framebuffer_factory.reset(
-            framebuffer_factory);
-        gpt_pass_callback->set_framebuffer(framebuffer_factory);
+            new VarianceTrackingShadingResultFrameBufferFactory(m_frame));
         return true;
     }
     else if (name.empty())

@@ -59,7 +59,8 @@ class GPTPassCallback
     // Constructor.
     GPTPassCallback(
         const GPTParameters&                             params,
-        STree*                                           sd_tree,
+        STree&                                           sd_tree,
+        VarianceTrackingShadingResultFrameBufferFactory& framebuffer,
         const size_t                                     sample_budget,
         const size_t                                     max_passes);
 
@@ -78,9 +79,6 @@ class GPTPassCallback
         foundation::JobQueue&                            job_queue,
         foundation::IAbortSwitch&                        abort_switch) override;
 
-    void set_framebuffer(
-        VarianceTrackingShadingResultFrameBufferFactory* framebuffer);
-
   private:
     void image_to_buffer(
         const foundation::Image&                         image,
@@ -95,12 +93,12 @@ class GPTPassCallback
     size_t                                               m_remaining_passes;
     size_t                                               m_passes_left_curr_iter;
     size_t                                               m_num_passes_curr_iter;
-    STree*                                               m_sd_tree;
+    STree&                                               m_sd_tree;
     size_t                                               m_sample_budget;
     float                                                m_last_extrapolated_variance;
     bool                                                 m_is_final_iter;
     bool                                                 m_var_increase;
-    VarianceTrackingShadingResultFrameBufferFactory*     m_framebuffer;
+    VarianceTrackingShadingResultFrameBufferFactory&     m_framebuffer;
 
     std::list<foundation::Image>                         m_image_buffer;
     std::list<float>                                     m_inverse_variance_buffer;
