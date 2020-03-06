@@ -656,7 +656,6 @@ float DTree::pdf(
 void DTree::halve_sample_weight()
 {
     m_current_iter_sample_weight = 0.5f * m_current_iter_sample_weight.load(std::memory_order_relaxed);
-    m_previous_iter_sample_weight *= 0.5f;
 }
 
 size_t DTree::node_count() const
@@ -743,7 +742,7 @@ void DTree::restructure(
 
 float DTree::sample_weight() const
 {
-    return m_previous_iter_sample_weight;
+    return m_current_iter_sample_weight.load(std::memory_order_relaxed);
 }
 
 float DTree::mean() const
