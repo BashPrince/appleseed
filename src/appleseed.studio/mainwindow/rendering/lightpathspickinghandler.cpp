@@ -31,7 +31,9 @@
 
 // appleseed.studio headers.
 #include "mainwindow/rendering/lightpathswidget.h"
-#include "utility/mousecoordinatestracker.h"
+
+// appleseed.qtcommon headers.
+#include "widgets/mousecoordinatestracker.h"
 
 // appleseed.renderer headers.
 #include "renderer/api/frame.h"
@@ -40,9 +42,9 @@
 #include "renderer/api/project.h"
 
 // appleseed.foundation headers.
-#include "foundation/math/vector.h"
 #include "foundation/image/canvasproperties.h"
 #include "foundation/image/image.h"
+#include "foundation/math/vector.h"
 #include "foundation/utility/string.h"
 
 // Qt headers.
@@ -50,6 +52,7 @@
 #include <QMouseEvent>
 #include <Qt>
 
+using namespace appleseed::qtcommon;
 using namespace foundation;
 using namespace renderer;
 

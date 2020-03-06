@@ -45,10 +45,10 @@
 #include "renderer/api/texture.h"
 
 // appleseed.foundation headers.
+#include "foundation/containers/dictionary.h"
 #include "foundation/core/concepts/noncopyable.h"
 #include "foundation/math/transform.h"
-#include "foundation/utility/autoreleaseptr.h"
-#include "foundation/utility/containers/dictionary.h"
+#include "foundation/memory/autoreleaseptr.h"
 
 // Qt headers.
 #include <QObject>
@@ -188,7 +188,7 @@ inline renderer::EnvironmentEDF* ProjectBuilder::edit_entity(
     const foundation::Dictionary&       values) const
 {
     foundation::auto_release_ptr<renderer::EnvironmentEDF> new_entity(create_entity<renderer::EnvironmentEDF>(values));
-    renderer::EnvironmentEDF* new_entity_ptr = new_entity.get(); 
+    renderer::EnvironmentEDF* new_entity_ptr = new_entity.get();
 
     copy_transform_sequence(old_entity, new_entity_ptr);
 

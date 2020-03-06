@@ -32,7 +32,7 @@
 // UI definition header.
 #include "ui_falsecolorswindow.h"
 
-// appleseed.studio headers.
+// appleseed.qtcommon headers.
 #include "utility/miscellaneous.h"
 
 // appleseed.renderer headers.
@@ -52,6 +52,7 @@
 #include <QShortcut>
 #include <Qt>
 
+using namespace appleseed::qtcommon;
 using namespace foundation;
 using namespace renderer;
 

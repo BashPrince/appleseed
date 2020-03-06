@@ -31,17 +31,17 @@
 #include "benchmarkaggregator.h"
 
 // appleseed.foundation headers.
+#include "foundation/containers/dictionary.h"
 #include "foundation/utility/benchmark/benchmarkdatapoint.h"
 #include "foundation/utility/benchmark/benchmarkseries.h"
-#include "foundation/utility/containers/dictionary.h"
 #include "foundation/utility/foreach.h"
 #include "foundation/utility/string.h"
 #include "foundation/utility/xercesc.h"
 
 // Boost headers.
 #include "boost/date_time/posix_time/posix_time.hpp"
-#include "boost/filesystem/operations.hpp"
-#include "boost/filesystem/path.hpp"
+#include "boost/filesystem.hpp"
+#include "boost/range/iterator_range.hpp"
 #include "boost/regex.hpp"
 
 // Xerces-C++ headers.
@@ -301,12 +301,10 @@ void BenchmarkAggregator::scan_directory(const char* path)
     if (!bf::is_directory(path))
         return;
 
-    for (bf::directory_iterator i(path), e; i != e; ++i)
+    for (const bf::path& entry_path : boost::make_iterator_range(bf::directory_iterator(path)))
     {
-        if (!bf::is_regular_file(i->status()))
-            continue;
-
-        scan_file(i->path().string().c_str());
+        if (bf::is_regular_file(entry_path))
+            scan_file(entry_path.string().c_str());
     }
 }
 

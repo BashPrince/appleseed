@@ -30,12 +30,12 @@
 // Interface header.
 #include "benchmarkrunnerthread.h"
 
-// appleseed.shared headers.
+// appleseed.common headers.
 #include "application/application.h"
 
 // appleseed.foundation headers.
+#include "foundation/memory/autoreleaseptr.h"
 #include "foundation/platform/thread.h"
-#include "foundation/utility/autoreleaseptr.h"
 #include "foundation/utility/benchmark.h"
 #include "foundation/utility/string.h"
 
@@ -47,7 +47,7 @@
 #include <cassert>
 #include <string>
 
-using namespace appleseed::shared;
+using namespace appleseed::common;
 using namespace foundation;
 namespace bf = boost::filesystem;
 
