@@ -123,8 +123,16 @@ class QuadTreeNode
     void flatten(
         std::list<VisualizerNode>&          nodes) const;
 
-  private:
-      // Recursively sample a direction based on the directional radiance distribution.
+    void build_radiance_map(
+        std::vector<float>&                 radiance_map,
+        const foundation::Vector2u&         index,
+        const size_t                        level,
+        const size_t                        max_level,
+        const size_t                        map_res,
+        const float                         area_weight_scale) const;
+
+private:
+    // Recursively sample a direction based on the directional radiance distribution.
     const foundation::Vector2f sample_recursive(
         foundation::Vector2f&               sample,
         float&                              pdf) const;
@@ -144,6 +152,30 @@ class QuadTreeNode
     float                               m_previous_iter_radiance_sum;
     
     bool                                m_is_leaf;
+};
+
+// Clarberg et.al. [2008] Fast Equal-Area Mapping of the (Hemi) Sphere using SIMD
+template <typename T>
+class RadianceProxy
+{
+  public:
+    RadianceProxy() = default;
+    RadianceProxy(
+        std::vector<float>&                 radiance_map,
+        const size_t                        map_res)
+    {
+
+    }
+
+    template<typename U>
+    RadianceProxy(const RadianceProxy<U>&   radiance_proxy)
+      : m_high_res_map(radiance_proxy.m_high_res_map)
+    {
+        std::copy(radiance_proxy.m_map.begin(), radiance_proxy.m_map.end(), m_map.begin());
+    }
+    
+    T                                   m_map;
+    std::shared_ptr<std::vector<float>> m_high_res_map;
 };
 
 // The D-tree interface.
@@ -193,6 +225,9 @@ class DTree
     void write_to_disk(
         std::ofstream&                      os) const;
 
+    void build_radiance_map();
+    void build_equal_area_maps();
+
   private:
     void acquire_optimization_spin_lock();
     void release_optimization_spin_lock();
@@ -218,6 +253,10 @@ class DTree
     float                               m_theta;
 
     const GPTParameters&                m_parameters;
+
+    std::vector<float>                  m_radiance_map;
+    size_t                              m_radiance_map_res;
+    RadianceProxy<std::vector<float>>   m_radiance_proxy;
 };
 
 // The S-tree node class.

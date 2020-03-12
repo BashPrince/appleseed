@@ -524,6 +524,71 @@ void QuadTreeNode::flatten(
     }
 }
 
+void QuadTreeNode::build_radiance_map(
+    std::vector<float>&                         radiance_map,
+    const Vector2u&                             index,
+    const size_t                                level,
+    const size_t                                max_level,
+    const size_t                                map_res,
+    const float                                 area_weight_scale) const
+{
+    if (m_is_leaf)
+    {
+        const size_t level_diff = max_level - level;
+        Vector2u origin(index);
+        size_t size = 1;
+
+        for (size_t i = 0; i < level_diff; ++i)
+        {
+            origin *= static_cast<size_t>(2);
+            size *= 2;
+        }
+        
+        const float radiance_scale = std::pow(4.0f, static_cast<float>(level - 1));
+
+        for(size_t y = 0; y < size; ++y)
+            for(size_t x = 0; x < size; ++x)
+            {
+                const Vector2u pixel_pos = origin + Vector2u(x, y);
+                const size_t pixel_index = pixel_pos.y * map_res + pixel_pos.x;
+
+                radiance_map[pixel_index] = radiance_sum() * radiance_scale * area_weight_scale;
+            }
+    }
+    else
+    {
+        const Vector2u origin = index * size_t(2);
+        m_upper_left_node->build_radiance_map(
+            radiance_map,
+            origin,
+            level + 1,
+            max_level,
+            map_res,
+            area_weight_scale);
+        m_upper_right_node->build_radiance_map(
+            radiance_map,
+            origin + Vector2u(1, 0),
+            level + 1,
+            max_level,
+            map_res,
+            area_weight_scale);
+        m_lower_left_node->build_radiance_map(
+            radiance_map,
+            origin + Vector2u(0, 1),
+            level + 1,
+            max_level,
+            map_res,
+            area_weight_scale);
+        m_lower_right_node->build_radiance_map(
+            radiance_map,
+            origin + Vector2u(1, 1),
+            level + 1,
+            max_level,
+            map_res,
+            area_weight_scale);
+    }
+}
+
 struct DTreeRecord
 {
     Vector3f                    direction;
@@ -703,6 +768,7 @@ void DTree::restructure(
         m_first_moment = 0.0f;
         m_second_moment = 0.0f;
         m_theta = 0.0f;
+        m_radiance_map = std::vector<float>{0.0f};
         return;
     }
 
@@ -738,6 +804,9 @@ void DTree::restructure(
 
         m_scattering_mode = is_glossy ? ScatteringMode::Glossy : ScatteringMode::Diffuse;
     }
+
+    build_radiance_map();
+    build_equal_area_maps();
 }
 
 float DTree::sample_weight() const
@@ -751,6 +820,35 @@ float DTree::mean() const
         return 0.0f;
 
     return m_root_node.radiance_sum() * (1.0f / m_previous_iter_sample_weight) * RcpFourPi<float>();
+}
+
+void DTree::build_radiance_map()
+{
+    m_radiance_map.clear();
+
+    if (m_previous_iter_sample_weight <= 0.0f || m_root_node.radiance_sum() <= 0.0f)
+    {
+        m_radiance_map = std::vector<float>{0.0f};
+    }
+    else
+    {
+        const size_t depth = m_root_node.max_depth();
+        m_radiance_map_res = 1;
+        for (size_t i = 0; i < depth - 1; ++i)
+            m_radiance_map_res *= 2;
+
+        m_radiance_map = std::vector<float>(m_radiance_map_res * m_radiance_map_res);
+
+        const float scale_factor = 1.0f / (FourPi<float>() * m_previous_iter_sample_weight);
+        m_root_node.build_radiance_map(m_radiance_map, Vector2u(0, 0), 1, depth, m_radiance_map_res, scale_factor);
+    }
+}
+
+void DTree::build_equal_area_maps()
+{
+    m_radiance_proxy = RadianceProxy<std::vector<float>>(m_radiance_map, m_radiance_map_res);
+    m_radiance_map.clear();
+    m_radiance_map.shrink_to_fit();
 }
 
 float DTree::bsdf_sampling_fraction() const
