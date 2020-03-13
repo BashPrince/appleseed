@@ -28,12 +28,13 @@
 //
 
 // Interface header.
-#include "openfilelogtarget.h"
+#include "consolelogtarget.h"
 
 // appleseed.foundation headers.
+#include "foundation/log/filelogtargetbase.h"
+#include "foundation/log/logmessage.h"
 #include "foundation/platform/compiler.h"
-#include "foundation/utility/log/filelogtargetbase.h"
-#include "foundation/utility/log/logmessage.h"
+#include "foundation/platform/console.h"
 
 // Standard headers.
 #include <cstddef>
@@ -44,15 +45,15 @@ namespace foundation
 namespace
 {
     //
-    // A log target that outputs to an open std::FILE.
+    // A log target that outputs to the console.
     //
 
-    class OpenFileLogTarget
+    class ConsoleLogTarget
       : public FileLogTargetBase
     {
       public:
         // Constructor.
-        explicit OpenFileLogTarget(FILE* file)
+        explicit ConsoleLogTarget(FILE* file)
           : m_file(file)
         {
         }
@@ -71,22 +72,55 @@ namespace
             const char*                 header,
             const char*                 message) override
         {
+            set_text_color(category);
             write_message(m_file, category, header, message);
+            reset_text_color();
         }
 
       private:
         FILE* m_file;
+
+        // Set the text color, if colors are enabled.
+        void set_text_color(const LogMessage::Category category) const
+        {
+            switch (category)
+            {
+              default:
+              case LogMessage::Info:
+                console().set_text_color(Console::StdErr, Console::DefaultColor);
+                break;
+
+              case LogMessage::Debug:
+                console().set_text_color(Console::StdErr, Console::LightGreen);
+                break;
+
+              case LogMessage::Warning:
+                console().set_text_color(Console::StdErr, Console::LightMagenta);
+                break;
+
+              case LogMessage::Error:
+              case LogMessage::Fatal:
+                console().set_text_color(Console::StdErr, Console::LightRed);
+                break;
+            }
+        }
+
+        // Reset the text color, if colors are enabled.
+        void reset_text_color() const
+        {
+            Console::instance().reset_text_color(Console::StdErr);
+        }
     };
 }
 
 
 //
-// Create an instance of a log target that outputs to an open std::FILE.
+// Create an instance of a log target that outputs to the console and use colors.
 //
 
-ILogTarget* create_open_file_log_target(FILE* file)
+ILogTarget* create_console_log_target(FILE* file)
 {
-    return new OpenFileLogTarget(file);
+    return new ConsoleLogTarget(file);
 }
 
 }   // namespace foundation

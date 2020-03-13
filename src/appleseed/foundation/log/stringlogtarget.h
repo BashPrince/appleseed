@@ -27,42 +27,56 @@
 // THE SOFTWARE.
 //
 
-// Interface header.
-#include "filelogtargetbase.h"
+#pragma once
 
 // appleseed.foundation headers.
-#include "foundation/utility/foreach.h"
-#include "foundation/utility/string.h"
+#include "foundation/log/ilogtarget.h"
+#include "foundation/log/logmessage.h"
+#include "foundation/platform/compiler.h"
+
+// appleseed.main headers.
+#include "main/dllsymbol.h"
 
 // Standard headers.
-#include <cassert>
-#include <string>
-#include <vector>
+#include <cstddef>
 
 namespace foundation
 {
 
 //
-// FileLogTargetBase class implementation.
+// A log target that outputs to a string.
 //
 
-void FileLogTargetBase::write_message(
-    FILE*                       file,
-    const LogMessage::Category  category,
-    const char*                 header,
-    const char*                 message) const
+class APPLESEED_DLLSYMBOL StringLogTarget
+  : public ILogTarget
 {
-    assert(file);
-    assert(header);
-    assert(message);
+  public:
+    // Constructor.
+    StringLogTarget();
 
-    // Split the message into individual lines.
-    std::vector<std::string> lines;
-    split(message, "\n", lines);
+    // Destructor.
+    ~StringLogTarget() override;
 
-    // Emit the lines.
-    for (const_each<std::vector<std::string>> i = lines; i; ++i)
-        fprintf(file, "%s%s\n", header, i->c_str());
-}
+    // Delete this instance.
+    void release() override;
+
+    // Write a message.
+    void write(
+        const LogMessage::Category  category,
+        const char*                 file,
+        const size_t                line,
+        const char*                 header,
+        const char*                 message) override;
+
+    // Retrieve the string so far.
+    const char* get_string() const;
+
+  private:
+    struct Impl;
+    Impl* impl;
+};
+
+// Create an instance of a log target that outputs to a string.
+APPLESEED_DLLSYMBOL StringLogTarget* create_string_log_target();
 
 }   // namespace foundation

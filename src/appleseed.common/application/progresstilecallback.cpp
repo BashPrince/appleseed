@@ -37,11 +37,11 @@
 #include "foundation/image/canvasproperties.h"
 #include "foundation/image/image.h"
 #include "foundation/image/tile.h"
+#include "foundation/log/log.h"
 #include "foundation/platform/defaulttimers.h"
 #include "foundation/platform/thread.h"
-#include "foundation/utility/log.h"
+#include "foundation/string/string.h"
 #include "foundation/utility/stopwatch.h"
-#include "foundation/utility/string.h"
 
 // Standard headers.
 #include <memory>
@@ -117,7 +117,7 @@ namespace
                     "rendering, %s done; about %s remaining...",
                     pretty_percent(m_rendered_pixels, total_pixels).c_str(),
                     pretty_time(remaining_time).c_str());
-            }   
+            }
         }
 
       private:

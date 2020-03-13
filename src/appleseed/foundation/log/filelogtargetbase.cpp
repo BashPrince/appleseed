@@ -27,69 +27,42 @@
 // THE SOFTWARE.
 //
 
-#pragma once
+// Interface header.
+#include "filelogtargetbase.h"
 
 // appleseed.foundation headers.
-#include "foundation/platform/compiler.h"
-#include "foundation/utility/log/filelogtargetbase.h"
-#include "foundation/utility/log/logmessage.h"
-
-// appleseed.main headers.
-#include "main/dllsymbol.h"
+#include "foundation/string/string.h"
+#include "foundation/utility/foreach.h"
 
 // Standard headers.
-#include <cstddef>
-#include <cstdio>
+#include <cassert>
+#include <string>
+#include <vector>
 
 namespace foundation
 {
 
 //
-// A log target that outputs to a file.
+// FileLogTargetBase class implementation.
 //
 
-class APPLESEED_DLLSYMBOL FileLogTarget
-  : public FileLogTargetBase
+void FileLogTargetBase::write_message(
+    FILE*                       file,
+    const LogMessage::Category  category,
+    const char*                 header,
+    const char*                 message) const
 {
-  public:
-    enum Options
-    {
-        Default                     = 0,            // none of the flags below
-        FlushAfterEveryMessage      = 1UL << 0      // call fflush() on the file after every message
-    };
+    assert(file);
+    assert(header);
+    assert(message);
 
-    // Delete this instance.
-    void release() override;
+    // Split the message into individual lines.
+    std::vector<std::string> lines;
+    split(message, "\n", lines);
 
-    // Write a message.
-    void write(
-        const LogMessage::Category  category,
-        const char*                 file,
-        const size_t                line,
-        const char*                 header,
-        const char*                 message) override;
-
-    bool open(const char* filename);
-
-    void close();
-
-    bool is_open() const;
-
-  private:
-    friend APPLESEED_DLLSYMBOL FileLogTarget* create_file_log_target(const int options);
-
-    const int   m_options;
-    std::FILE*  m_file;
-
-    // Constructor.
-    explicit FileLogTarget(const int options);
-
-    // Destructor.
-    ~FileLogTarget() override;
-};
-
-// Create an instance of a log target that outputs to a file.
-APPLESEED_DLLSYMBOL FileLogTarget* create_file_log_target(
-    const int options = FileLogTarget::Options::Default);
+    // Emit the lines.
+    for (const_each<std::vector<std::string>> i = lines; i; ++i)
+        fprintf(file, "%s%s\n", header, i->c_str());
+}
 
 }   // namespace foundation

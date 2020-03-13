@@ -27,6 +27,7 @@
 //
 
 // appleseed.foundation headers.
+#include "foundation/hash/hash.h"
 #include "foundation/image/color.h"
 #include "foundation/image/colormap.h"
 #include "foundation/image/colormapdata.h"
@@ -34,12 +35,11 @@
 #include "foundation/image/genericimagefilewriter.h"
 #include "foundation/image/image.h"
 #include "foundation/image/pixel.h"
-#include "foundation/math/hash.h"
 #include "foundation/math/rng/xoroshiro128plus.h"
 #include "foundation/math/scalar.h"
 #include "foundation/math/vector.h"
+#include "foundation/string/string.h"
 #include "foundation/utility/gnuplotfile.h"
-#include "foundation/utility/string.h"
 #include "foundation/utility/test.h"
 
 // Standard headers.
@@ -50,7 +50,7 @@
 
 using namespace foundation;
 
-TEST_SUITE(Foundation_Math_Hash)
+TEST_SUITE(Foundation_Hash_Hash)
 {
     struct HistogramFixture
     {
@@ -419,7 +419,7 @@ TEST_SUITE(Foundation_Math_Hash)
 
     static std::uint32_t boost_hash_combine(const std::uint32_t h1, const std::uint32_t h2)
     {
-        // See foundation::combine_hashes() in foundation/math/hash.h for the constant derivation.
+        // See foundation::combine_hashes() in foundation/hash/hash.h for the constant derivation.
         return h1 ^ (h2 + 0x9E3779B9ul + (h1 << 6) + (h1 >> 2));
     }
 

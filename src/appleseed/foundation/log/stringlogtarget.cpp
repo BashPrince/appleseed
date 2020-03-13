@@ -27,35 +27,66 @@
 // THE SOFTWARE.
 //
 
-#pragma once
+// Interface header.
+#include "stringlogtarget.h"
 
 // appleseed.foundation headers.
-#include "foundation/utility/log/ilogtarget.h"
-#include "foundation/utility/log/logmessage.h"
-
-// appleseed.main headers.
-#include "main/dllsymbol.h"
+#include "foundation/string/string.h"
+#include "foundation/utility/foreach.h"
 
 // Standard headers.
-#include <cstdio>
+#include <string>
+#include <vector>
 
 namespace foundation
 {
 
-//
-// A convenient base class for log targets that write to std::FILE.
-//
-
-class APPLESEED_DLLSYMBOL FileLogTargetBase
-  : public ILogTarget
+struct StringLogTarget::Impl
 {
-  protected:
-    // Format and display the message.
-    void write_message(
-        std::FILE*                  file,
-        const LogMessage::Category  category,
-        const char*                 header,
-        const char*                 message) const;
+    std::string m_str;
 };
+
+StringLogTarget::StringLogTarget()
+  : impl(new Impl())
+{
+}
+
+StringLogTarget::~StringLogTarget()
+{
+    delete impl;
+}
+
+void StringLogTarget::release()
+{
+    delete this;
+}
+
+void StringLogTarget::write(
+    const LogMessage::Category  category,
+    const char*                 file,
+    const size_t                line,
+    const char*                 header,
+    const char*                 message)
+{
+    std::vector<std::string> lines;
+    split(message, "\n", lines);
+
+    for (const_each<std::vector<std::string>> i = lines; i; ++i)
+    {
+        impl->m_str.append(header);
+        impl->m_str.append(*i);
+        impl->m_str.append("\n");
+    }
+}
+
+const char* StringLogTarget::get_string() const
+{
+    return impl->m_str.c_str();
+}
+
+StringLogTarget* create_string_log_target()
+{
+    return new StringLogTarget();
+}
 
 }   // namespace foundation
