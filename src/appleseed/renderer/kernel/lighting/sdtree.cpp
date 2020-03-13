@@ -589,6 +589,158 @@ void QuadTreeNode::build_radiance_map(
     }
 }
 
+// Radiance proxy implementation.
+
+RadianceProxy::RadianceProxy(
+    std::vector<float>&                         radiance_map,
+    const size_t                                map_res)
+{
+}
+
+RadianceProxy::RadianceProxy(
+    const RadianceProxy&                        radiance_proxy)
+    : m_high_res_map(radiance_proxy.m_high_res_map)
+    , m_map(radiance_proxy.m_map)
+{
+}
+
+Vector2f cartesian_to_spherical_map(
+    const Vector3f&                     direction)
+{
+    const float is_upper_hemisphere = direction.z >= 0.0f;
+    float x = direction.x;
+    float y = direction.y;
+    unsigned int quadrant;
+
+    if (x >= 0.0f)
+    {
+        if (y >= 0.0f)
+        {
+            quadrant = 1;
+        }
+        else
+        {
+            quadrant = 4;
+        }
+    }
+    else
+    {
+        if (y >= 0.0f)
+        {
+            quadrant = 2;
+        }
+        else
+        {
+            quadrant = 3;
+        }
+    }
+
+    x = std::abs(x);
+    y = std::abs(y);
+
+    const float phi = std::atan2(y, x);
+    const float r = std::sqrt(1.0f - std::abs(direction.z));
+
+    float u, v;
+
+    if (is_upper_hemisphere)
+    {
+        u = r - 2.0f * phi * r * RcpPi<float>();
+        v = r - u;
+    }
+    else
+    {
+        u = 1.0f - 2.0f * phi * r * RcpPi<float>();
+        v = 2.0 - u - r;
+    }
+
+    if (quadrant == 2)
+    {
+        u = -u;
+    }
+    else if (quadrant == 3)
+    {
+        u = -u;
+        v = -v;
+    }
+    else if (quadrant == 4)
+    {
+        v = -v;
+    }
+
+    return 0.5f * Vector2f(u + 1.0f, v + 1.0f);
+}
+
+Vector3f spherical_map_to_cartesian(
+    const Vector2f&                     direction)
+{
+    float u = 2.0f * direction.x - 1.0f;
+    float v = 2.0f * direction.y - 1.0f;
+    unsigned int quadrant;
+
+    if (u >= 0.0f)
+    {
+        if (v >= 0.0f)
+        {
+            quadrant = 1;
+        }
+        else
+        {
+            quadrant = 4;
+        }
+    }
+    else
+    {
+        if (v >= 0.0f)
+        {
+            quadrant = 2;
+        }
+        else
+        {
+            quadrant = 3;
+        }
+    }
+    
+    u = std::abs(u);
+    v = std::abs(v);
+    
+    const bool is_upper_hemisphere = u + v <= 1.0f;
+    float r, phi;
+
+    if (is_upper_hemisphere)
+        r = u + v;
+    else
+        r = 2.0f - u - v;
+
+    if (r == 0.0f)
+        phi = 0.0f;
+    else
+        phi = PiOverFour<float>() * ((v - u) / r + 1.0f);
+
+    if (quadrant == 2)
+    {
+        phi = Pi<float>() - phi;
+    }
+    else if (quadrant == 3)
+    {
+        phi -= Pi<float>();
+    }
+    else if(quadrant == 4)
+    {
+        phi = -phi;
+    }
+
+    Vector3f cartesian_direction(
+        std::cos(phi) * r * std::sqrt(2.0f - r * r),
+        std::sin(phi) * r * std::sqrt(2.0f - r * r),
+        1.0f - r * r);
+
+    if (!is_upper_hemisphere)
+        cartesian_direction.z *= -1.0f;
+    
+    return cartesian_direction;
+}
+
 struct DTreeRecord
 {
     Vector3f                    direction;
@@ -846,7 +998,7 @@ void DTree::build_radiance_map()
 
 void DTree::build_equal_area_maps()
 {
-    m_radiance_proxy = RadianceProxy<std::vector<float>>(m_radiance_map, m_radiance_map_res);
+    m_radiance_proxy = RadianceProxy(m_radiance_map, m_radiance_map_res);
     m_radiance_map.clear();
     m_radiance_map.shrink_to_fit();
 }

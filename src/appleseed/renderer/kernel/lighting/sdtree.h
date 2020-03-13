@@ -154,27 +154,24 @@ private:
     bool                                m_is_leaf;
 };
 
-// Clarberg et.al. [2008] Fast Equal-Area Mapping of the (Hemi) Sphere using SIMD
-template <typename T>
+// Clarberg [2008] Fast Equal-Area Mapping of the (Hemi) Sphere using SIMD
 class RadianceProxy
 {
   public:
     RadianceProxy() = default;
     RadianceProxy(
         std::vector<float>&                 radiance_map,
-        const size_t                        map_res)
-    {
+        const size_t                        map_res);
 
-    }
+    RadianceProxy(const RadianceProxy&      radiance_proxy);
 
-    template<typename U>
-    RadianceProxy(const RadianceProxy<U>&   radiance_proxy)
-      : m_high_res_map(radiance_proxy.m_high_res_map)
-    {
-        std::copy(radiance_proxy.m_map.begin(), radiance_proxy.m_map.end(), m_map.begin());
-    }
+    foundation::Vector2f cartesian_to_spherical_map(
+        const foundation::Vector3f&         direction);
+
+    foundation::Vector3f spherical_map_to_cartesian(
+        const foundation::Vector2f&         direction);
     
-    T                                   m_map;
+    std::array<float, 12 * 12>          m_map;
     std::shared_ptr<std::vector<float>> m_high_res_map;
 };
 
@@ -256,7 +253,7 @@ class DTree
 
     std::vector<float>                  m_radiance_map;
     size_t                              m_radiance_map_res;
-    RadianceProxy<std::vector<float>>   m_radiance_proxy;
+    RadianceProxy                       m_radiance_proxy;
 };
 
 // The S-tree node class.
