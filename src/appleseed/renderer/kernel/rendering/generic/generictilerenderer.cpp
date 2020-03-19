@@ -44,21 +44,21 @@
 #include "renderer/utility/bbox.h"
 
 // appleseed.foundation headers.
+#include "foundation/hash/hash.h"
 #include "foundation/image/canvasproperties.h"
 #include "foundation/image/image.h"
 #include "foundation/image/tile.h"
 #include "foundation/math/aabb.h"
-#include "foundation/math/hash.h"
 #include "foundation/math/ordering.h"
 #include "foundation/math/scalar.h"
 #include "foundation/math/vector.h"
 #include "foundation/memory/autoreleaseptr.h"
 #include "foundation/platform/arch.h"
 #include "foundation/platform/debugger.h"
+#include "foundation/string/string.h"
 #include "foundation/utility/iostreamop.h"
 #include "foundation/utility/job.h"
 #include "foundation/utility/statistics.h"
-#include "foundation/utility/string.h"
 
 // Standard headers.
 #include <cassert>
@@ -177,6 +177,7 @@ namespace
                     return;
 
                 // Retrieve the coordinates of the pixel in the tile.
+                // todo: switch to Vector2u now that we no longer have pixels outside tiles.
                 const Vector2i pt(m_pixel_ordering[i].x, m_pixel_ordering[i].y);
 
                 // Skip pixels outside the intersection of the tile and the crop window.

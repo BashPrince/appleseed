@@ -65,6 +65,37 @@ struct DTreeSample
     ScatteringMode::Mode                scattering_mode;
 };
 
+// Clarberg [2008] Fast Equal-Area Mapping of the (Hemi) Sphere using SIMD
+class RadianceProxy
+{
+  public:
+    RadianceProxy() = default;
+    RadianceProxy(
+        const std::vector<std::vector<float>>&  mip_maps);
+
+    RadianceProxy(const RadianceProxy&          other);
+
+    foundation::Vector2f sphere_to_square(
+        const foundation::Vector3f&             direction) const;
+
+    foundation::Vector3f square_to_sphere(
+        const foundation::Vector2f&             direction) const;
+
+    float radiance (const foundation::Vector3f& direction) const;
+    float proxy_radiance (
+        const foundation::Vector3f&             direction) const;
+    
+    std::array<float, 12 * 12>          m_map;
+    std::shared_ptr<std::vector<float>> m_high_res_map;
+    size_t                              m_resolution;
+
+  private:
+    float bilerp(
+        const std::vector<float>&       mip,
+        const size_t                    mip_res,
+        const foundation::Vector2f&     pos) const;
+};
+
 // The node type for the D-Tree.
 
 class QuadTreeNode
@@ -123,8 +154,35 @@ class QuadTreeNode
     void flatten(
         std::list<VisualizerNode>&          nodes) const;
 
-  private:
-      // Recursively sample a direction based on the directional radiance distribution.
+    float radiance(
+        foundation::Vector2f&               direction) const;
+
+    void build_radiance_map(
+        std::vector<float>&                 radiance_map,
+        const foundation::Vector2u&         index,
+        const size_t                        level,
+        const size_t                        max_level,
+        const size_t                        map_res,
+        const float                         area_weight_scale) const;
+
+    void evaluate_proxy(
+        const RadianceProxy&            proxy,
+        const foundation::Vector2f&     direction,
+        float&                          error_sum,
+        float&                          low_res_error_sum,
+        const size_t                    depth,
+        const float                     area_weight_scale) const;
+
+    void evaluate_radiance_map(
+        const std::vector<float>&       map,
+        const size_t                    map_res,
+        const foundation::Vector2f&     direction,
+        float&                          error_sum,
+        const size_t                    depth,
+        const float                     area_weight_scale) const;
+
+private:
+    // Recursively sample a direction based on the directional radiance distribution.
     const foundation::Vector2f sample_recursive(
         foundation::Vector2f&               sample,
         float&                              pdf) const;
@@ -193,6 +251,13 @@ class DTree
     void write_to_disk(
         std::ofstream&                      os) const;
 
+    float radiance(
+        const foundation::Vector3f&         direction) const;
+
+    void build_radiance_map();
+    void build_equal_area_maps();
+    const RadianceProxy& get_radiance_proxy() const;
+
   private:
     void acquire_optimization_spin_lock();
     void release_optimization_spin_lock();
@@ -218,6 +283,9 @@ class DTree
     float                               m_theta;
 
     const GPTParameters&                m_parameters;
+
+    std::vector<std::vector<float>>     m_mip_maps;
+    RadianceProxy                       m_radiance_proxy;
 };
 
 // The S-tree node class.

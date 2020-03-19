@@ -37,11 +37,11 @@
 #include "foundation/image/canvasproperties.h"
 #include "foundation/image/image.h"
 #include "foundation/image/tile.h"
+#include "foundation/log/log.h"
 #include "foundation/platform/defaulttimers.h"
 #include "foundation/platform/thread.h"
-#include "foundation/utility/log.h"
+#include "foundation/string/string.h"
 #include "foundation/utility/stopwatch.h"
-#include "foundation/utility/string.h"
 
 // Standard headers.
 #include <memory>
@@ -110,14 +110,14 @@ namespace
             const double remaining_time = (elapsed_time / m_rendered_tiles) * (total_tiles - m_rendered_tiles);
 
             // Print a progress message.
-            if (m_rendered_tiles <= total_tiles)
-            {
-                LOG_INFO(
-                    m_logger,
-                    "rendering, %s done; about %s remaining...",
-                    pretty_percent(m_rendered_pixels, total_pixels).c_str(),
-                    pretty_time(remaining_time).c_str());
-            }   
+            // if (m_rendered_tiles <= total_tiles)
+            // {
+            //     LOG_INFO(
+            //         m_logger,
+            //         "rendering, %s done; about %s remaining...",
+            //         pretty_percent(m_rendered_pixels, total_pixels).c_str(),
+            //         pretty_time(remaining_time).c_str());
+            // }
         }
 
       private:

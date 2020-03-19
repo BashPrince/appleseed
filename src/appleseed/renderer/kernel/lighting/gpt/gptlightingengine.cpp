@@ -59,7 +59,7 @@
 #include "foundation/math/vector.h"
 #include "foundation/platform/types.h"
 #include "foundation/utility/statistics.h"
-#include "foundation/utility/string.h"
+#include "foundation/string/string.h"
 
 // Standard headers.
 #include <algorithm>
@@ -267,6 +267,14 @@ namespace
                 }
 
                 return true;
+            }
+
+            void add_radiance(const Spectrum& radiance)
+            {
+                m_path_radiance.add_emission(
+                    2,
+                    ScatteringMode::Diffuse,
+                    radiance);
             }
 
           protected:

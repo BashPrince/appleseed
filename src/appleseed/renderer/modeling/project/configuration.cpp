@@ -203,6 +203,8 @@ Dictionary Configuration::get_metadata()
         "texture_controlled_pixel_renderer",
         TextureControlledPixelRendererFactory::get_params_metadata());
 
+    // GenericTileRendererFactory exposes no metadata.
+
     metadata.dictionaries().insert(
         "adaptive_tile_renderer",
         AdaptiveTileRendererFactory::get_params_metadata());

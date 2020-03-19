@@ -59,7 +59,7 @@
 #include "foundation/math/scalar.h"
 #include "foundation/math/vector.h"
 #include "foundation/memory/arena.h"
-#include "foundation/utility/string.h"
+#include "foundation/string/string.h"
 
 // Standard headers.
 #include <algorithm>
@@ -292,7 +292,7 @@ size_t GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::trace(
         ShadingPoint* next_shading_point = m_shading_point_arena.allocate<ShadingPoint>();
 
 #ifndef NDEBUG
-        // Save the sampling context at the beginning of the iteration.
+        // Save the sampling context at the beginniore. If you fire up 4 threads on a 4 core machine, it’s up to the OS where those threads end up. They might be evenly spread, they might not be.ng of the iteration.
         const SamplingContext backup_sampling_context(sampling_context);
 
         // Resume execution here to reliably reproduce problems downstream.
@@ -752,6 +752,36 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
         wi_pdf,
         d_tree_pdf
     );
+
+    /*
+    // Integrate based on proxy radiance
+    // REMOVE PathVisitor::add_radiance WHEN DONE !!!!!!!
+    if (m_sd_tree->is_final_iteration())
+    {
+        // Terminate the path if it gets absorbed.
+        if (sample.get_mode() == ScatteringMode::None)
+            return false;
+
+        // Update path throughput.
+        if (wi_pdf != BSDF::DiracDelta)
+            sample.m_value /= wi_pdf;
+        const Spectrum throughput = vertex.m_throughput * sample.m_value.m_beauty;
+
+        const RadianceProxy radiance_proxy(d_tree->get_radiance_proxy());
+
+        //const Spectrum radiance(d_tree->radiance(sample.m_incoming.get_value()));
+        const Spectrum radiance(radiance_proxy.proxy_radiance(sample.m_incoming.get_value()));
+
+        if(radiance[0] <= 0.0f)
+            return false;
+
+        const Spectrum spectrum_radiance(radiance * throughput);
+
+        m_path_visitor.add_radiance(spectrum_radiance);
+
+        return false;
+    }
+    */
 
     if (!is_path_guided)
     {

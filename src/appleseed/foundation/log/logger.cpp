@@ -31,13 +31,13 @@
 #include "logger.h"
 
 // appleseed.foundation headers.
+#include "foundation/log/ilogtarget.h"
 #include "foundation/platform/compiler.h"
 #include "foundation/platform/snprintf.h"
 #include "foundation/platform/system.h"
 #include "foundation/platform/thread.h"
+#include "foundation/string/string.h"
 #include "foundation/utility/foreach.h"
-#include "foundation/utility/log/ilogtarget.h"
-#include "foundation/utility/string.h"
 
 // Boost headers.
 #include "boost/date_time/posix_time/posix_time.hpp"
