@@ -37,7 +37,7 @@
 // appleseed.foundation headers.
 #include "foundation/platform/types.h"
 #include "foundation/utility/job/iabortswitch.h"
-#include "foundation/utility/string.h"
+#include "foundation/string/string.h"
 
 // Standard headers.
 #include <algorithm>
@@ -49,7 +49,7 @@ using namespace std;
 namespace renderer
 {
 
-const size_t ImageBufferCapacity = 4;
+const size_t ImageBufferCapacity = 1;
 
 GPTPassCallback::GPTPassCallback(
         const GPTParameters&                                params,
