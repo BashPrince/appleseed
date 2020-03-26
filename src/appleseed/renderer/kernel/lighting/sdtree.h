@@ -37,6 +37,7 @@
 // appleseed.foundation headers.
 #include "foundation/math/aabb.h"
 #include "foundation/math/vector.h"
+#include "foundation/utility/job/jobqueue.h"
 
 // Standard headers.
 #include <array>
@@ -317,7 +318,8 @@ class STreeNode
 
     // Refine the D-tree at spatial leaf nodes.
     void restructure(
-        const float                         subdiv_threshold);
+        const float                         subdiv_threshold,
+        foundation::JobQueue&               jobqueue);
 
     // Build the D-tree at spatial leaf nodes.
     void build();

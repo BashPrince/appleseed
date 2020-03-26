@@ -37,6 +37,9 @@
 #include "foundation/math/scalar.h"
 #include "foundation/math/sampling/mappings.h"
 #include "foundation/string/string.h"
+#include "foundation/utility/job/ijob.h"
+#include "foundation/utility/job/jobmanager.h"
+#include "foundation/utility/job/jobqueue.h"
 
 // Standard headers.
 #include <algorithm>
@@ -1529,17 +1532,37 @@ void STreeNode::record(
     }
 }
 
+struct RestructureJob : public IJob
+{
+    RestructureJob(
+        DTree*                          d_tree,
+        const float                     subdiv_threshold)
+      : m_d_tree(d_tree)
+      , m_subdiv_threshold(subdiv_threshold)
+    {}
+
+    void execute(const size_t thread_index) override
+    {
+        m_d_tree->restructure(m_subdiv_threshold);
+    }
+
+  private:
+    DTree*      m_d_tree;
+    const float m_subdiv_threshold;
+};
+
 void STreeNode::restructure(
-    const float                         subdiv_threshold)
+    const float                         subdiv_threshold,
+    JobQueue&                           jobqueue)
 {
     if(is_leaf())
     {
-        m_d_tree->restructure(subdiv_threshold);
+        jobqueue.schedule(new RestructureJob(m_d_tree.get(), subdiv_threshold));
     }
     else
     {
-        m_first_node->restructure(subdiv_threshold);
-        m_second_node->restructure(subdiv_threshold);
+        m_first_node->restructure(subdiv_threshold, jobqueue);
+        m_second_node->restructure(subdiv_threshold, jobqueue);
     }
 }
 
@@ -1742,7 +1765,12 @@ void STree::build(
 
     // First refine the S-tree then refine the D-tree at each spatial leaf.
     m_root_node->subdivide(required_samples);
-    m_root_node->restructure(DTreeThreshold);
+
+    JobQueue jobqueue;
+    JobManager jobmanager(global_logger(), jobqueue, 12, JobManager::KeepRunningOnEmptyQueue);
+    jobmanager.start();
+    m_root_node->restructure(DTreeThreshold, jobqueue);
+    jobqueue.wait_until_completion();
 
     DTreeStatistics statistics;
     m_root_node->gather_statistics(statistics);
