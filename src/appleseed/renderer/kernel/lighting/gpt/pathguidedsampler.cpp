@@ -180,8 +180,17 @@ bool PathGuidedSampler::sample(
             bsdf_sample.m_incoming.get_value(),
             m_bsdf_sampling_modes,
             bsdf_sample.m_value);
-            
-        bsdf_sample.set_to_scattering(scattering_mode, bsdf_pdf);
+
+        if (bsdf_pdf == 0.0f)
+        {
+            // Reject invalid directions.
+            bsdf_sample.set_to_scattering(ScatteringMode::None, bsdf_pdf);
+            return true;
+        }
+        else
+        {
+            bsdf_sample.set_to_scattering(scattering_mode, bsdf_pdf);
+        }
 
         wi_pdf = guided_path_extension_pdf(bsdf_sample.m_incoming.get_value(), bsdf_pdf, d_tree_pdf, true);
 
