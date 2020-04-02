@@ -1920,7 +1920,7 @@ void GPTVertex::record_to_tree(
     Spectrum incoming_radiance;
     Spectrum product;
 
-    for(size_t i = 0; i < Spectrum::size(); ++i)
+    for (size_t i = 0; i < Spectrum::size(); ++i)
     {
         // Check if components are valid.
         if (!std::isfinite(m_radiance[i]) || m_radiance[i] < 0.0f ||

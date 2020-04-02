@@ -118,4 +118,13 @@ void BSDF::compute_absorption(
     absorption.set(1.0f);
 }
 
+bool BSDF::add_parameters_to_proxy(
+    BSDFProxy&              bsdf_proxy,
+    const void*             data,
+    const int               modes) const
+{
+    // Default implementation returns parameterization not supported.
+    return false;
+}
+
 }   // namespace renderer

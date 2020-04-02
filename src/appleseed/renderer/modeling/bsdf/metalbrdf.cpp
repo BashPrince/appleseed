@@ -288,6 +288,30 @@ namespace
             return pdf;
         }
 
+        bool add_parameters_to_proxy(
+            BSDFProxy&              bsdf_proxy,
+            const void*             data,
+            const int               modes) const override
+        {
+            if (!ScatteringMode::has_glossy(modes))
+                return false;
+
+            const InputValues* values = static_cast<const InputValues*>(data);
+
+            float alpha_x, alpha_y;
+            microfacet_alpha_from_roughness(
+                values->m_roughness,
+                values->m_anisotropy,
+                alpha_x,
+                alpha_y);
+            
+            const float alpha = std::max(alpha_x, alpha_y);
+            const float avg_reflectance = average_value(values->m_normal_reflectance) * values->m_reflectance_multiplier;
+            bsdf_proxy.add_reflection_weight(avg_reflectance, alpha);
+
+            return true;
+        }
+
       private:
         typedef MetalBRDFInputValues InputValues;
 

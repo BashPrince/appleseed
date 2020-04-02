@@ -1256,6 +1256,8 @@ source_group ("renderer\\kernel\\lighting\\sppm" FILES
 set (renderer_kernel_lighting_sources
     renderer/kernel/lighting/backwardlightsampler.cpp
     renderer/kernel/lighting/backwardlightsampler.h
+    renderer/kernel/lighting/bsdfproxy.cpp
+    renderer/kernel/lighting/bsdfproxy.h
     renderer/kernel/lighting/directlightingintegrator.cpp
     renderer/kernel/lighting/directlightingintegrator.h
     renderer/kernel/lighting/forwardlightsampler.cpp

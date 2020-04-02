@@ -31,6 +31,7 @@
 
 // appleseed.renderer headers.
 #include "renderer/global/globaltypes.h"
+#include "renderer/kernel/lighting/bsdfproxy.h"
 #include "renderer/kernel/lighting/scatteringmode.h"
 #include "renderer/modeling/entity/connectableentity.h"
 
@@ -197,6 +198,13 @@ class APPLESEED_DLLSYMBOL BSDF
         const void*                 data,
         const float                 distance,
         Spectrum&                   absorption) const;
+    
+    // Parameterize a BSDFProxy. Return true if the underlying BSDF type
+    // supports proxy parameterization and false otherwise.
+    virtual bool add_parameters_to_proxy(
+        BSDFProxy&                  bsdf_proxy,
+        const void*                 data,
+        const int                   modes) const;
 
     // Force a given direction to lie above a surface described by its normal vector.
     // Return true if the input direction was modified, false otherwise.
