@@ -191,18 +191,14 @@ shader as_standard_surface
         float max = 1.0,
         string label = "Specular Roughness",
         string page = "Specular",
-        int as_max_param_id = 20
+        int as_max_param_id = 20,
+        int divider = 1
     ]],
     float in_specular_spread = 0.25
     [[
         string as_maya_attribute_name = "specularSpread",
         string as_maya_attribute_short_name = "sps",
-        float min = 0.0,
-        float max = 1.0,
-        string label = "Specular Spread",
-        string page = "Specular",
-        string help = "Specular spread, controls the tails of the highlights.",
-        int divider = 1,
+        string widget = "null",
         int as_deprecated = 1,
         int as_max_param_id = 22
     ]],
@@ -266,8 +262,22 @@ shader as_standard_surface
         int as_maya_attribute_hidden = 1,
         int as_blender_input_socket = 0,
         int gafferNoduleLayoutVisible = 0,
-        int divider = 1,
         int as_max_param_id = 27
+    ]],
+    float in_edge_tint_weight = 0.0
+    [[
+        string as_maya_attribute_name = "edgeTintWeight",
+        string as_maya_attribute_short_name = "f90w",
+        string label = "Edge Tint Weight",
+        string page = "Specular",
+        string help = "Edge tint weight.",
+        int as_maya_attribute_connectable = 0,
+        int as_maya_attribute_keyable = 0,
+        int as_maya_attribute_hidden = 1,
+        int as_blender_input_socket = 0,
+        int gafferNoduleLayoutVisible = 0,
+        int divider = 1,
+        int as_max_param_id = 71
     ]],
     float in_anisotropy_amount = 0.0
     [[
@@ -792,6 +802,7 @@ shader as_standard_surface
                     tangent,
                     in_face_tint,
                     in_edge_tint,
+                    in_edge_tint_weight,
                     in_specular_roughness,
                     in_anisotropy_amount);
         }
