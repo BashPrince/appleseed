@@ -134,11 +134,23 @@ float BSDFProxy::evaluate(
     }
     if (m_is_reflective)
     {
-        
+        const float cos_refl_i = foundation::dot(m_reflection_lobe, incoming);
+        const float cos2_refl_i = cos_refl_i * cos_refl_i;
+        const float sin2_refl_i = 1.0f - cos2_refl_i;
+        const float alpha2 = m_reflection_roughness * m_reflection_roughness;
+
+        const float factor = cos2_refl_i + sin2_refl_i / alpha2;
+        value += m_reflection_weight / (foundation::Pi<float>() * alpha2 * factor * factor);
     }
     if (m_is_refractive)
     {
+        const float cos_refr_i = foundation::dot(m_refraction_lobe, incoming);
+        const float cos2_refr_i = cos_refr_i * cos_refr_i;
+        const float sin2_refr_i = 1.0f - cos2_refr_i;
+        const float alpha2 = m_refraction_roughness * m_refraction_roughness;
 
+        const float factor = cos2_refr_i + sin2_refr_i / alpha2;
+        value += m_refraction_weight / (foundation::Pi<float>() * alpha2 * factor * factor);
     }
 
     return value;
