@@ -783,6 +783,10 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
     }
     */
 
+    // Terminate the path if it gets absorbed.
+    if (sample.get_mode() == ScatteringMode::None)
+        return false;
+
     if (!is_path_guided)
     {
         // Above-surface scattering.
@@ -805,10 +809,6 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
         if (!m_path_visitor.accept_scattering(vertex.m_prev_mode, sample.get_mode()))
             return false;
     }
-
-    // Terminate the path if it gets absorbed.
-    if (sample.get_mode() == ScatteringMode::None)
-        return false;
 
     // Save the scattering properties for MIS at light-emitting vertices.
     vertex.m_prev_mode = sample.get_mode();

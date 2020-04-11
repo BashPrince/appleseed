@@ -173,6 +173,22 @@ namespace
             const float cos_in = std::abs(dot(incoming, n));
             return cos_in * RcpPi<float>();
         }
+
+        bool add_parameters_to_proxy(
+            BSDFProxy&              bsdf_proxy,
+            const void*             data,
+            const int               modes) const override
+        {
+            if (!ScatteringMode::has_diffuse(modes))
+                return false;
+                
+            const LambertianBRDFInputValues *values = static_cast<const LambertianBRDFInputValues *>(data);
+            Spectrum value = values->m_reflectance;
+            value *= values->m_reflectance_multiplier * RcpPi<float>();
+            bsdf_proxy.add_diffuse_weight(average_value(value));
+
+            return true;
+        }
     };
 
     typedef BSDFWrapper<LambertianBRDFImpl> LambertianBRDF;

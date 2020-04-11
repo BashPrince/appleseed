@@ -86,9 +86,9 @@ class RadianceProxy
     float proxy_radiance (
         const foundation::Vector3f&             direction) const;
     
-    std::array<float, 12 * 12>          m_map;
-    std::shared_ptr<std::vector<float>> m_high_res_map;
-    size_t                              m_resolution;
+    alignas(32) std::array<float, 12 * 12>  m_map;
+    std::shared_ptr<std::vector<float>>     m_high_res_map;
+    size_t                                  m_resolution;
 
   private:
     float bilerp(
