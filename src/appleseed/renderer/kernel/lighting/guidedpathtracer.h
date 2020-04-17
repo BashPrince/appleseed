@@ -753,35 +753,34 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
         d_tree_pdf
     );
 
-    /*
+    
     // Integrate based on proxy radiance
     // REMOVE PathVisitor::add_radiance WHEN DONE !!!!!!!
-    if (m_sd_tree->is_final_iteration())
-    {
-        // Terminate the path if it gets absorbed.
-        if (sample.get_mode() == ScatteringMode::None)
-            return false;
+    // if (m_sd_tree->is_final_iteration())
+    // {
+    //     // Terminate the path if it gets absorbed.
+    //     if (sample.get_mode() == ScatteringMode::None)
+    //         return false;
 
-        // Update path throughput.
-        if (wi_pdf != BSDF::DiracDelta)
-            sample.m_value /= wi_pdf;
-        const Spectrum throughput = vertex.m_throughput * sample.m_value.m_beauty;
+    //     // Update path throughput.
+    //     if (wi_pdf != BSDF::DiracDelta)
+    //         sample.m_value /= wi_pdf;
+    //     const Spectrum throughput = vertex.m_throughput * sample.m_value.m_beauty;
 
-        const RadianceProxy radiance_proxy(d_tree->get_radiance_proxy());
+    //     const RadianceProxy radiance_proxy(d_tree->get_radiance_proxy());
 
-        //const Spectrum radiance(d_tree->radiance(sample.m_incoming.get_value()));
-        const Spectrum radiance(radiance_proxy.proxy_radiance(sample.m_incoming.get_value()));
+    //     //const Spectrum radiance(d_tree->radiance(sample.m_incoming.get_value()));
+    //     const Spectrum radiance(radiance_proxy.radiance(sample.m_incoming.get_value()));
 
-        if(radiance[0] <= 0.0f)
-            return false;
+    //     if(radiance[0] <= 0.0f)
+    //         return false;
 
-        const Spectrum spectrum_radiance(radiance * throughput);
+    //     const Spectrum spectrum_radiance(radiance * throughput);
 
-        m_path_visitor.add_radiance(spectrum_radiance);
+    //     m_path_visitor.add_radiance(spectrum_radiance);
 
-        return false;
-    }
-    */
+    //     return false;
+    // }
 
     // Terminate the path if it gets absorbed.
     if (sample.get_mode() == ScatteringMode::None)
