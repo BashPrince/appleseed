@@ -621,8 +621,22 @@ RadianceProxy::RadianceProxy(
         for (size_t x = 0; x < m_resolution; ++x)
         {
             Vector2f point(x + 0.5f, y + 0.5f);
-            Vector2f point_dx(x + 1, y);
-            Vector2f point_dy(x, y + 1);
+            Vector2f point_dx(point.x + 1.0f, point.y);
+            Vector2f point_dy(point.x, point.y + 1.0f);
+
+            // Handle dx seam.
+            if (point_dx.x >= m_resolution)
+            {
+                point_dx.x = m_resolution - 0.5f;
+                point_dx.y = m_resolution - point_dx.y;
+            }
+
+            // Handle dy seam.
+            if (point_dy.y >= m_resolution)
+            {
+                point_dy.y = m_resolution - 0.5f;
+                point_dy.x = m_resolution - point_dy.x;
+            }
 
             point *= inv_res;
             point_dx *= inv_res;
@@ -636,12 +650,57 @@ RadianceProxy::RadianceProxy(
             const Vector2f point_dx_cylindrical = cartesian_to_cylindrical(point_dx_dir_world);
             const Vector2f point_dy_cylindrical = cartesian_to_cylindrical(point_dy_dir_world);
 
-            const Vector2f diff_x = point_dx_cylindrical - point_cylindrical;
-            const Vector2f diff_y = point_dy_cylindrical - point_cylindrical;
+            // Wrap dx/dy around seams and check for the shortest possible distance in the cylindrical map.
+            Vector2f point_dx_phi_wrap = point_dx_cylindrical;
+            Vector2f point_dx_theta_wrap = point_dx_cylindrical;
+            Vector2f point_dy_phi_wrap = point_dy_cylindrical;
+            Vector2f point_dy_theta_wrap = point_dy_cylindrical;
+
+            // Wrap around phi.
+            if (point_dx_cylindrical.y < 0.5f)
+                point_dx_phi_wrap.y += 1.0f;
+            else
+                point_dx_phi_wrap.y -= 1.0f;
+
+            if (point_dy_cylindrical.y < 0.5f)
+                point_dy_phi_wrap.y += 1.0f;
+            else
+                point_dy_phi_wrap.y -= 1.0f;
+            
+            // Wrap around theta.
+            if (point_dx_cylindrical.x < 0.5f)
+            {
+                if (point_dx_cylindrical.y < 0.5f)
+                    point_dx_theta_wrap.y += 0.5f;
+                else
+                    point_dx_theta_wrap.y -= 0.5f;
+            }
+
+            if (point_dy_cylindrical.x < 0.5f)
+            {
+                if (point_dy_cylindrical.y < 0.5f)
+                    point_dy_theta_wrap.y += 0.5f;
+                else
+                    point_dy_theta_wrap.y -= 0.5f;
+            }
+
+            // Min distance for dx.
+            const float min_dx = std::min(
+                std::min(
+                    foundation::norm(point_dx_cylindrical - point_cylindrical),
+                    foundation::norm(point_dx_phi_wrap - point_cylindrical)),
+                    foundation::norm(point_dx_theta_wrap - point_cylindrical));
+
+            // Min distance for dy.
+            const float min_dy = std::min(
+                std::min(
+                    foundation::norm(point_dy_cylindrical - point_cylindrical),
+                    foundation::norm(point_dy_phi_wrap - point_cylindrical)),
+                    foundation::norm(point_dy_theta_wrap - point_cylindrical));
 
             // Mip map reconstruction.
             
-            const float mip_level = std::log2f(std::max(foundation::norm(diff_x), foundation::norm(diff_y)));
+            const float mip_level = std::log2f(std::max(min_dx, min_dy));
 
             const size_t lower_mip_index = std::max(std::min(static_cast<int>(mip_level), static_cast<int>(mip_maps.size() - 1)), 0);
             const size_t upper_mip_index = std::min(lower_mip_index + 1, mip_maps.size() - 1);
@@ -890,30 +949,60 @@ float RadianceProxy::bilerp(
         pos.x * mip_res,
         pos.y * mip_res);
 
-    const Vector2u upper_left_mip_pixel(
-        pixel_float.x,
-        pixel_float.y);
+    Vector2i upper_left_mip_pixel(
+        std::floor(pixel_float.x - 0.5f),
+        std::floor(pixel_float.y - 0.5f));
 
-    const Vector2u upper_right_mip_pixel(
-        std::min(upper_left_mip_pixel.x + 1, mip_res - 1),
+    Vector2i upper_right_mip_pixel(
+        upper_left_mip_pixel.x + 1.0f,
         upper_left_mip_pixel.y);
 
-    const Vector2u lower_left_mip_pixel(
+    Vector2i lower_left_mip_pixel(
         upper_left_mip_pixel.x,
-        std::min(upper_left_mip_pixel.y + 1, mip_res - 1));
+        upper_left_mip_pixel.y + 1.0f);
 
-    const Vector2u lower_right_mip_pixel(
-        std::min(upper_left_mip_pixel.x + 1, mip_res - 1),
-        std::min(upper_left_mip_pixel.y + 1, mip_res - 1));
+    Vector2i lower_right_mip_pixel(
+        upper_left_mip_pixel.x + 1.0f,
+        upper_left_mip_pixel.y + 1.0f);
+
+    // Wrap out of bounds pixels.
+    auto wrap = [&](Vector2i& pixel)
+    {
+        if (pixel.y < 0)
+            pixel.y = mip_res - 1;
+        else if (pixel.y > mip_res - 1)
+            pixel.y = 0;
+        
+        if (pixel.x < 0)
+        {
+            pixel.x = 0;
+            pixel.y = (pixel.y + mip_res / 2) % mip_res;
+        }
+        else if (pixel.x > mip_res - 1)
+        {
+            pixel.x = mip_res - 1;
+            pixel.y = (pixel.y + mip_res / 2) % mip_res;
+        }
+    };
+
+    wrap(upper_left_mip_pixel);
+    wrap(upper_right_mip_pixel);
+    wrap(lower_left_mip_pixel);
+    wrap(lower_right_mip_pixel);
 
     const float upper_left_pixel_val = mip[upper_left_mip_pixel.y * mip_res + upper_left_mip_pixel.x];
     const float upper_right_pixel_val = mip[upper_right_mip_pixel.y * mip_res + upper_right_mip_pixel.x];
     const float lower_left_pixel_val = mip[lower_left_mip_pixel.y * mip_res + lower_left_mip_pixel.x];
     const float lower_right_pixel_val = mip[lower_right_mip_pixel.y * mip_res + lower_right_mip_pixel.x];
 
-    const float upper_row = foundation::lerp(upper_left_pixel_val, upper_right_pixel_val, pixel_float.x - upper_left_mip_pixel.x);
-    const float lower_row = foundation::lerp(lower_left_pixel_val, lower_right_pixel_val, pixel_float.x - lower_left_mip_pixel.x);
-    return foundation::lerp(upper_row, lower_row, pixel_float.y - upper_left_mip_pixel.y);
+    const float offset_x = pixel_float.x - 0.5f;
+    const float offset_y = pixel_float.y - 0.5f;
+    const float x_interpolation = offset_x - std::floor(offset_x);
+    const float y_interpolation = offset_y - std::floor(offset_y);
+
+    const float upper_row = foundation::lerp(upper_left_pixel_val, upper_right_pixel_val, x_interpolation);
+    const float lower_row = foundation::lerp(lower_left_pixel_val, lower_right_pixel_val, x_interpolation);
+    return foundation::lerp(upper_row, lower_row, y_interpolation);
 }
 
 void QuadTreeNode::evaluate_proxy(
