@@ -332,18 +332,17 @@ float QuadTreeNode::pdf(
     Vector2f&                           direction) const
 {
     if(m_is_leaf)
-        return RcpFourPi<float>();
+        return m_previous_iter_radiance_sum * RcpFourPi<float>();
     
     const QuadTreeNode* sub_node = choose_node(direction);
-    const float factor = 4.0f * sub_node->m_previous_iter_radiance_sum / m_previous_iter_radiance_sum;
-    return factor * sub_node->pdf(direction);
+    return 4.0f * sub_node->pdf(direction);
 }
 
 const Vector2f QuadTreeNode::sample(
     Vector2f&                           sample,
     float&                              pdf) const
 {
-    pdf = 1.0f; // initiate to one for recursive sampling routine
+    pdf = 1.0f / m_previous_iter_radiance_sum; // initiate to one for recursive sampling routine
     return sample_recursive(sample, pdf);
 }
 
@@ -366,7 +365,7 @@ const Vector2f QuadTreeNode::sample_recursive(
 
     if(m_is_leaf)
     {
-        pdf *= RcpFourPi<float>();
+        pdf *= m_previous_iter_radiance_sum * RcpFourPi<float>();
         return sample;
     }
 
@@ -378,6 +377,8 @@ const Vector2f QuadTreeNode::sample_recursive(
     const float sum_right_half = upper_right + lower_right;
 
     float factor = sum_left_half / m_previous_iter_radiance_sum;
+
+    pdf *= 4.0f;
     
     // Sample child nodes with probability proportional to their energy.
     if(sample.x < factor)
@@ -389,19 +390,15 @@ const Vector2f QuadTreeNode::sample_recursive(
         {
             sample.y /= factor;
             const Vector2f sampled_direction =
-                Vector2f(0.0f, 0.0f) + 0.5f * m_upper_left_node->sample(sample, pdf);
+                Vector2f(0.0f, 0.0f) + 0.5f * m_upper_left_node->sample_recursive(sample, pdf);
 
-            const float probability_factor = 4.0f * upper_left / m_previous_iter_radiance_sum;
-            pdf *= probability_factor;
             return sampled_direction;
         }
 
         sample.y = (sample.y - factor) / (1.0f - factor);
         const Vector2f sampled_direction =
-            Vector2f(0.0f, 0.5f) + 0.5f * m_lower_left_node->sample(sample, pdf);
+            Vector2f(0.0f, 0.5f) + 0.5f * m_lower_left_node->sample_recursive(sample, pdf);
 
-        const float probability_factor = 4.0f * lower_left / m_previous_iter_radiance_sum;
-        pdf *= probability_factor;
         return sampled_direction;
     }
     else
@@ -413,19 +410,15 @@ const Vector2f QuadTreeNode::sample_recursive(
         {
             sample.y /= factor;
             const Vector2f sampled_direction =
-                Vector2f(0.5f, 0.0f) + 0.5f * m_upper_right_node->sample(sample, pdf);
+                Vector2f(0.5f, 0.0f) + 0.5f * m_upper_right_node->sample_recursive(sample, pdf);
 
-            const float probability_factor = 4.0f * upper_right / m_previous_iter_radiance_sum;
-            pdf *= probability_factor;
             return sampled_direction;
         }
 
         sample.y = (sample.y - factor) / (1.0f - factor);
         const Vector2f sampled_direction =
-            Vector2f(0.5f, 0.5f) + 0.5f * m_lower_right_node->sample(sample, pdf);
+            Vector2f(0.5f, 0.5f) + 0.5f * m_lower_right_node->sample_recursive(sample, pdf);
 
-        const float probability_factor = 4.0f * lower_right / m_previous_iter_radiance_sum;
-        pdf *= probability_factor;
         return sampled_direction;
     }
 }
@@ -1201,7 +1194,7 @@ float DTree::pdf(
         return RcpFourPi<float>();
 
     Vector2f dir = cartesian_to_cylindrical(direction);
-    return m_root_node.pdf(dir);
+    return m_root_node.pdf(dir) / m_root_node.radiance_sum();
 }
 
 void DTree::halve_sample_weight()
