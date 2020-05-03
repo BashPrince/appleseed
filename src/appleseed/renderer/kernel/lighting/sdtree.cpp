@@ -35,6 +35,7 @@
 
 // appleseed.foundation headers.
 #include "foundation/math/scalar.h"
+#include "foundation/math/sampling/imageimportancesampler.h"
 #include "foundation/math/sampling/mappings.h"
 #include "foundation/string/string.h"
 #include "foundation/utility/job/ijob.h"
@@ -331,11 +332,17 @@ void QuadTreeNode::reset()
 float QuadTreeNode::pdf(
     Vector2f&                           direction) const
 {
+    return pdf_recursive(direction) / m_previous_iter_radiance_sum;
+}
+
+float QuadTreeNode::pdf_recursive(
+    Vector2f&                           direction) const
+{
     if(m_is_leaf)
-        return m_previous_iter_radiance_sum * RcpFourPi<float>();
+        return m_previous_iter_radiance_sum;
     
     const QuadTreeNode* sub_node = choose_node(direction);
-    return 4.0f * sub_node->pdf(direction);
+    return 4.0f * sub_node->pdf_recursive(direction);
 }
 
 const Vector2f QuadTreeNode::sample(
@@ -365,7 +372,7 @@ const Vector2f QuadTreeNode::sample_recursive(
 
     if(m_is_leaf)
     {
-        pdf *= m_previous_iter_radiance_sum * RcpFourPi<float>();
+        pdf *= m_previous_iter_radiance_sum;
         return sample;
     }
 
@@ -520,71 +527,6 @@ void QuadTreeNode::flatten(
     }
 }
 
-void QuadTreeNode::build_radiance_map(
-    std::vector<float>&                         radiance_map,
-    const Vector2u&                             index,
-    const size_t                                level,
-    const size_t                                max_level,
-    const size_t                                map_res,
-    const float                                 area_weight_scale) const
-{
-    if (m_is_leaf)
-    {
-        const size_t level_diff = max_level - level;
-        Vector2u origin(index);
-        size_t size = 1;
-
-        for (size_t i = 0; i < level_diff; ++i)
-        {
-            origin *= static_cast<size_t>(2);
-            size *= 2;
-        }
-        
-        const float radiance = std::pow(4.0f, static_cast<float>(level - 1)) * m_previous_iter_radiance_sum * area_weight_scale;
-
-        for(size_t y = 0; y < size; ++y)
-            for(size_t x = 0; x < size; ++x)
-            {
-                const Vector2u pixel_pos = origin + Vector2u(x, y);
-                const size_t pixel_index = pixel_pos.y * map_res + pixel_pos.x;
-
-                radiance_map[pixel_index] = radiance;
-            }
-    }
-    else
-    {
-        const Vector2u origin = index * size_t(2);
-        m_upper_left_node->build_radiance_map(
-            radiance_map,
-            origin,
-            level + 1,
-            max_level,
-            map_res,
-            area_weight_scale);
-        m_upper_right_node->build_radiance_map(
-            radiance_map,
-            origin + Vector2u(1, 0),
-            level + 1,
-            max_level,
-            map_res,
-            area_weight_scale);
-        m_lower_left_node->build_radiance_map(
-            radiance_map,
-            origin + Vector2u(0, 1),
-            level + 1,
-            max_level,
-            map_res,
-            area_weight_scale);
-        m_lower_right_node->build_radiance_map(
-            radiance_map,
-            origin + Vector2u(1, 1),
-            level + 1,
-            max_level,
-            map_res,
-            area_weight_scale);
-    }
-}
-
 float QuadTreeNode::radiance(Vector2f& direction) const
 {
     if (m_is_leaf)
@@ -593,339 +535,104 @@ float QuadTreeNode::radiance(Vector2f& direction) const
     return 4.0f * choose_node(direction)->radiance(direction);
 }
 
-// Radiance proxy implementation.
-
-RadianceProxy::RadianceProxy(
-    const std::vector<std::vector<float>>&      mip_maps)
-  : m_map({0.0f})
+float QuadTreeNode::integrate_pdf(const float area) const
 {
-    size_t map_res = 1;
-    for (size_t i = 0; i < mip_maps.size() - 1; ++i)
-        map_res *= 2;
-
-    m_resolution = (map_res / 12) * 12; // multiple of 12
-    m_high_res_map = std::make_shared<std::vector<float>>(m_resolution * m_resolution);
-    const float inv_res = 1.0f / m_resolution;
-
-    const size_t block_size = m_resolution / 12;
-    const float weight = 1.0f / (block_size * block_size);
-
-    for (size_t y = 0; y < m_resolution; ++y)
-        for (size_t x = 0; x < m_resolution; ++x)
-        {
-            Vector2f point(x + 0.5f, y + 0.5f);
-            Vector2f point_dx(point.x + 1.0f, point.y);
-            Vector2f point_dy(point.x, point.y + 1.0f);
-
-            // Handle dx seam.
-            if (point_dx.x >= m_resolution)
-            {
-                point_dx.x = m_resolution - 0.5f;
-                point_dx.y = m_resolution - point_dx.y;
-            }
-
-            // Handle dy seam.
-            if (point_dy.y >= m_resolution)
-            {
-                point_dy.y = m_resolution - 0.5f;
-                point_dy.x = m_resolution - point_dy.x;
-            }
-
-            point *= inv_res;
-            point_dx *= inv_res;
-            point_dy *= inv_res;
-
-            const Vector3f point_dir_world = square_to_sphere(point);
-            const Vector3f point_dx_dir_world = square_to_sphere(point_dx);
-            const Vector3f point_dy_dir_world = square_to_sphere(point_dy);
-
-            const Vector2f point_cylindrical = cartesian_to_cylindrical(point_dir_world);
-            const Vector2f point_dx_cylindrical = cartesian_to_cylindrical(point_dx_dir_world);
-            const Vector2f point_dy_cylindrical = cartesian_to_cylindrical(point_dy_dir_world);
-
-            // Wrap dx/dy around seams and check for the shortest possible distance in the cylindrical map.
-            Vector2f point_dx_phi_wrap = point_dx_cylindrical;
-            Vector2f point_dx_theta_wrap = point_dx_cylindrical;
-            Vector2f point_dy_phi_wrap = point_dy_cylindrical;
-            Vector2f point_dy_theta_wrap = point_dy_cylindrical;
-
-            // Wrap around phi.
-            if (point_dx_cylindrical.y < 0.5f)
-                point_dx_phi_wrap.y += 1.0f;
-            else
-                point_dx_phi_wrap.y -= 1.0f;
-
-            if (point_dy_cylindrical.y < 0.5f)
-                point_dy_phi_wrap.y += 1.0f;
-            else
-                point_dy_phi_wrap.y -= 1.0f;
-            
-            // Wrap around theta.
-            if (point_dx_cylindrical.x < 0.5f)
-            {
-                if (point_dx_cylindrical.y < 0.5f)
-                    point_dx_theta_wrap.y += 0.5f;
-                else
-                    point_dx_theta_wrap.y -= 0.5f;
-            }
-
-            if (point_dy_cylindrical.x < 0.5f)
-            {
-                if (point_dy_cylindrical.y < 0.5f)
-                    point_dy_theta_wrap.y += 0.5f;
-                else
-                    point_dy_theta_wrap.y -= 0.5f;
-            }
-
-            // Min distance for dx.
-            const float min_dx = std::min(
-                std::min(
-                    foundation::norm(point_dx_cylindrical - point_cylindrical),
-                    foundation::norm(point_dx_phi_wrap - point_cylindrical)),
-                    foundation::norm(point_dx_theta_wrap - point_cylindrical));
-
-            // Min distance for dy.
-            const float min_dy = std::min(
-                std::min(
-                    foundation::norm(point_dy_cylindrical - point_cylindrical),
-                    foundation::norm(point_dy_phi_wrap - point_cylindrical)),
-                    foundation::norm(point_dy_theta_wrap - point_cylindrical));
-
-            // Mip map reconstruction.
-            
-            const float mip_level = std::log2f(std::max(min_dx, min_dy));
-
-            const size_t lower_mip_index = std::max(std::min(static_cast<int>(mip_level), static_cast<int>(mip_maps.size() - 1)), 0);
-            const size_t upper_mip_index = std::min(lower_mip_index + 1, mip_maps.size() - 1);
-
-            const std::vector<float>& lower_mip = mip_maps[lower_mip_index];
-            const std::vector<float>& upper_mip = mip_maps[upper_mip_index];
-
-            size_t lower_mip_res = map_res;
-
-            for (size_t i = 0; i < lower_mip_index; ++i)
-                lower_mip_res /= 2;
-
-            size_t upper_mip_res = (lower_mip_index == upper_mip_index) ? lower_mip_res : lower_mip_res / 2;
-
-            const float lower_mip_value = bilerp(lower_mip, lower_mip_res, point_cylindrical);
-            const float upper_mip_value = bilerp(upper_mip, upper_mip_res, point_cylindrical);
-            const float value = foundation::lerp(lower_mip_value, upper_mip_value, mip_level - lower_mip_index);
-
-            (*m_high_res_map)[y * m_resolution + x] = value;
-            m_map[(y / block_size) * 12 + x / block_size] += value * weight;
-        }
+    return 0.0f;
 }
 
-RadianceProxy::RadianceProxy(
-    const RadianceProxy&                        other)
-    : m_high_res_map(other.m_high_res_map)
-    , m_map(other.m_map)
-    , m_resolution(other.m_resolution)
+void QuadTreeNode::build_radiance_proxy(
+    RadianceProxy&                      radiance_proxy,
+    const float                         radiance_factor,
+    const Vector2u                      origin,
+    const size_t                        level) const
 {
-}
-
-// Using source code of Fast Equal-Area Mapping of the (Hemi)Sphere using SIMD [Clarberg, 2008]
-// http://fileadmin.cs.lth.se/cs/Personal/Petrik_Clarberg/code/simd_mapping.zip
-
-Vector2f RadianceProxy::sphere_to_square(
-    const Vector3f &direction) const
-{
-    float phi = std::atan2(direction.y, direction.x) * foundation::TwoOverPi<float>(); // phi in [-2,2]
-    float u, v;
-
-    // There are 8 different cases we need to test (3 levels of nestled
-    // if-statements to compute the (u,v) coordiantes in the square.
-
-    if (direction.z < 0.0f) // southern hemisphere
+    if (level == 4 || m_is_leaf)
     {
-        float r = std::sqrt(1.f + direction.z);
+        const size_t level_diff = 4 - level;
+        size_t width = 1;
+        Vector2u pixel_origin = origin;
 
-        if (phi >= 0.f)
+        for (size_t i = 0; i < level_diff; ++i)
         {
-            if (phi <= 1.f)
-            {
-                u = 1.f - r * phi;
-                v = 2.f - r - u;
-            }
-            else
-            {
-                u = r * (2.f - phi) - 1.f;
-                v = 2.f - r + u;
-            }
+            width *= 2;
+            pixel_origin *= static_cast<size_t>(2);
         }
-        else
+
+        const float radiance = radiance_factor * m_previous_iter_radiance_sum;
+
+        for (size_t y = 0; y < width; ++y)
         {
-            if (phi >= -1.f)
+            for (size_t x = 0; x < width; ++x)
             {
-                u = r * phi + 1.f;
-                v = r - 2.f + u;
-            }
-            else
-            {
-                u = r * (2.f + phi) - 1.f;
-                v = r - 2.f - u;
-            }
-        }
-    }
-    else // northern hemisphere
-    {
-        float r = std::sqrt(1.f - direction.z);
+                const Vector2u pixel = pixel_origin + Vector2u(x, y);
+                const size_t pixel_index = pixel.y * 16 + pixel.x;
 
-        if (phi >= 0.f)
-        {
-            if (phi < 1.f)
-            {
-                v = r * phi;
-                u = r - v;
-            }
-            else
-            {
-                v = r * (2.f - phi);
-                u = v - r;
-            }
-        }
-        else
-        {
-            if (phi > -1.f)
-            {
-                v = r * phi;
-                u = r + v;
-            }
-            else
-            {
-                v = -r * (2.f + phi);
-                u = -(r + v);
-            }
-        }
-    }
-
-    // Transform (u,v) from [-1,1] to [0,1]
-    u = 0.5f * (u + 1.f);
-    v = 0.5f * (v + 1.f);
-
-    return Vector2f(u, v);
-}
-
-// Using source code of Fast Equal-Area Mapping of the (Hemi)Sphere using SIMD [Clarberg, 2008]
-// http://fileadmin.cs.lth.se/cs/Personal/Petrik_Clarberg/code/simd_mapping.zip
-
-Vector3f RadianceProxy::square_to_sphere(
-    const Vector2f&                 direction) const
-{
-    // Transform point from [0,1] to [-1,1]
-    float u = 2.f * direction.x - 1.f;
-    float v = 2.f * direction.y - 1.f;
-
-    // Compute lengths (a,b) for rotated square (-45deg) scaled by sqrt(2).
-    float a = v + u;
-    float b = v - u;
-
-    // Compute (r,phi) differently based on which quadrant we are in.
-    // There are 8 different cases (3 levels of nestled if-statements).
-    // We set z to -1 or 1 based on which hemisphere we are in.
-
-    float r, phi, z;
-
-    if (v >= 0.f)
-    {
-        if (u >= 0.f) // quadrant 1
-        {
-            if (a <= 1.f) // north
-            {
-                r = a;
-                z = 1.f;
-                phi = v / r;
-            }
-            else // south
-            {
-                r = 2.f - a;
-                z = -1.f;
-                phi = (1.f - u) / r;
-            }
-        }
-        else // quadrant 2
-        {
-            if (b <= 1.f) // north
-            {
-                r = b;
-                z = 1.f;
-                phi = 1.f - u / r;
-            }
-            else
-            {
-                r = 2.f - b;
-                z = -1.f;
-                phi = 1.f + (1.f - v) / r;
+                radiance_proxy.m_map[pixel_index] = radiance;
+                (*radiance_proxy.m_quadtree_strata)[pixel_index] = !m_is_leaf ? this : nullptr;
             }
         }
     }
     else
     {
-        if (u < 0.0f) // quadrant 3
-        {
-            if (a >= -1.f) // north
-            {
-                r = -a;
-                z = 1.f;
-                phi = 2.f - v / r;
-            }
-            else // south
-            {
-                r = 2.f + a;
-                z = -1.f;
-                phi = 2.f + (1.f + u) / r;
-            }
-        }
-        else // quadrant 4
-        {
-            if (b >= -1.f) // north
-            {
-                r = -b;
-                z = 1.f;
-                phi = 3.f + u / r;
-            }
-            else // south
-            {
-                r = 2.f + b;
-                z = -1.f;
-                phi = 3.f + (1.f + v) / r;
-            }
-        }
+        const Vector2u sub_node_origin = static_cast<size_t>(2) * origin;
+        m_upper_left_node->build_radiance_proxy(
+            radiance_proxy,
+            radiance_factor * 4.0f,
+            sub_node_origin,
+            level + 1);
+        m_upper_right_node->build_radiance_proxy(
+            radiance_proxy,
+            radiance_factor * 4.0f,
+            sub_node_origin + Vector2u(1, 0),
+            level + 1);
+        m_lower_left_node->build_radiance_proxy(
+            radiance_proxy,
+            radiance_factor * 4.0f,
+            sub_node_origin + Vector2u(0, 1),
+            level + 1);
+        m_lower_right_node->build_radiance_proxy(
+            radiance_proxy,
+            radiance_factor * 4.0f,
+            sub_node_origin + Vector2u(1, 1),
+            level + 1);
     }
+}
 
-    // Fix division-by-zero problem (r=0).
-    if (r == 0.f)
-        phi = 0.f;
+// Radiance proxy implementation.
 
-    // Compute 3D coordinate (x,y,z)
-    float r2 = r * r;
-    phi *= foundation::HalfPi<float>();
-    float sin_t = r * std::sqrt(2.f - r2); // sin(theta)
-
-    float x = sin_t * std::cos(phi);
-    float y = sin_t * std::sin(phi);
-    z *= 1.f - r2;
-
-    return Vector3f(x, y, z);
+void RadianceProxy::build(
+    const QuadTreeNode&                 quadtree_root,
+    const float                         radiance_scale)
+{
+    m_quadtree_strata = std::make_shared<std::array<const QuadTreeNode*, 16 * 16>>();
+    quadtree_root.build_radiance_proxy(
+        (*this),
+        radiance_scale);
+    
+    for (float& pixel_val : m_map)
+    {
+        if (pixel_val < 0.0f || std::isnan(pixel_val) || std::isinf(pixel_val))
+            pixel_val = 0.0f;
+    }
 }
 
 float RadianceProxy::radiance(
     const Vector3f&                 direction) const
 {
-    const Vector2f spherical_direction(sphere_to_square(direction) * static_cast<float>(m_resolution));
-    const Vector2u pixel(
-        std::min(static_cast<size_t>(spherical_direction.x), m_resolution - 1),
-        std::min(static_cast<size_t>(spherical_direction.y), m_resolution - 1));
+    return 0.0f;
+    // const Vector2f spherical_direction(sphere_to_square(direction) * static_cast<float>(m_resolution));
+    // const Vector2u pixel(
+    //     std::min(static_cast<size_t>(spherical_direction.x), m_resolution - 1),
+    //     std::min(static_cast<size_t>(spherical_direction.y), m_resolution - 1));
     
-    return (*m_high_res_map)[pixel.y * m_resolution + pixel.x];
+    // return (*m_high_res_map)[pixel.y * m_resolution + pixel.x];
 }
 
 float RadianceProxy::proxy_radiance(
     const Vector3f&                 direction) const
 {
-    const size_t map_width = 12;
-    const Vector2f spherical_direction(sphere_to_square(direction) * static_cast<float>(map_width));
+    const size_t map_width = 16;
+    const Vector2f spherical_direction(cartesian_to_cylindrical(direction) * static_cast<float>(map_width));
     const Vector2u pixel(
         std::min(static_cast<size_t>(spherical_direction.x), map_width - 1),
         std::min(static_cast<size_t>(spherical_direction.y), map_width - 1));
@@ -933,139 +640,98 @@ float RadianceProxy::proxy_radiance(
     return m_map[pixel.y * map_width + pixel.x];
 }
 
-float RadianceProxy::bilerp(
-    const std::vector<float>&   mip,
-    const size_t                mip_res,
-    const Vector2f&             pos) const
+template<std::size_t N>
+class ImageSampler
 {
-    const Vector2f pixel_float(
-        pos.x * mip_res,
-        pos.y * mip_res);
-
-    Vector2i upper_left_mip_pixel(
-        std::floor(pixel_float.x - 0.5f),
-        std::floor(pixel_float.y - 0.5f));
-
-    Vector2i upper_right_mip_pixel(
-        upper_left_mip_pixel.x + 1.0f,
-        upper_left_mip_pixel.y);
-
-    Vector2i lower_left_mip_pixel(
-        upper_left_mip_pixel.x,
-        upper_left_mip_pixel.y + 1.0f);
-
-    Vector2i lower_right_mip_pixel(
-        upper_left_mip_pixel.x + 1.0f,
-        upper_left_mip_pixel.y + 1.0f);
-
-    // Wrap out of bounds pixels.
-    auto wrap = [&](Vector2i& pixel)
+  public:
+    ImageSampler(
+        const std::array<float, N * N>&       radiance_map)
+        : m_radiance_map(radiance_map)
     {
-        if (pixel.y < 0)
-            pixel.y = mip_res - 1;
-        else if (pixel.y > mip_res - 1)
-            pixel.y = 0;
-        
-        if (pixel.x < 0)
-        {
-            pixel.x = 0;
-            pixel.y = (pixel.y + mip_res / 2) % mip_res;
-        }
-        else if (pixel.x > mip_res - 1)
-        {
-            pixel.x = mip_res - 1;
-            pixel.y = (pixel.y + mip_res / 2) % mip_res;
-        }
-    };
+    }
 
-    wrap(upper_left_mip_pixel);
-    wrap(upper_right_mip_pixel);
-    wrap(lower_left_mip_pixel);
-    wrap(lower_right_mip_pixel);
+    void sample(const size_t x, const size_t y, float& payload, float& importance)
+    {
+        payload = importance = m_radiance_map[y * N + x];
+    }
 
-    const float upper_left_pixel_val = mip[upper_left_mip_pixel.y * mip_res + upper_left_mip_pixel.x];
-    const float upper_right_pixel_val = mip[upper_right_mip_pixel.y * mip_res + upper_right_mip_pixel.x];
-    const float lower_left_pixel_val = mip[lower_left_mip_pixel.y * mip_res + lower_left_mip_pixel.x];
-    const float lower_right_pixel_val = mip[lower_right_mip_pixel.y * mip_res + lower_right_mip_pixel.x];
+  private:
+    const std::array<float, N * N>&   m_radiance_map;
+};
 
-    const float offset_x = pixel_float.x - 0.5f;
-    const float offset_y = pixel_float.y - 0.5f;
-    const float x_interpolation = offset_x - std::floor(offset_x);
-    const float y_interpolation = offset_y - std::floor(offset_y);
-
-    const float upper_row = foundation::lerp(upper_left_pixel_val, upper_right_pixel_val, x_interpolation);
-    const float lower_row = foundation::lerp(lower_left_pixel_val, lower_right_pixel_val, x_interpolation);
-    return foundation::lerp(upper_row, lower_row, y_interpolation);
-}
-
-void QuadTreeNode::evaluate_proxy(
-    const RadianceProxy&        proxy,
-    const Vector2f&             direction,
-    float&                      error_sum,
-    float&                      low_res_error_sum,
-    const size_t                depth,
-    const float                 area_weight_scale) const
+float RadianceProxy::sample(
+    SamplingContext&                        sampling_context,
+    foundation::Vector3f&                   direction) const
 {
-    if (m_is_leaf)
+    ImageSampler<16> image_sampler(m_map);
+    ImageImportanceSampler<float, float> image_importance_sampler(16, 16);
+    image_importance_sampler.rebuild(image_sampler, nullptr);
+
+    // Sample the importance map.
+    sampling_context.split_in_place(2, 1);
+    Vector2f s = sampling_context.next2<Vector2f>();
+    Vector2u pixel;
+    float payload;
+    float pdf;
+    image_importance_sampler.sample(s, pixel.x, pixel.y, payload, pdf);
+    assert(pdf >= 0.0f);
+
+    Vector2f cylindrical_direction(pixel.x, pixel.y);
+    sampling_context.split_in_place(2, 1);
+    s = sampling_context.next2<Vector2f>();
+
+    const QuadTreeNode* sub_tree = (*m_quadtree_strata)[pixel.y * 16 + pixel.x];
+
+    if (sub_tree)
     {
-        const Vector3f cartesian_direction = cylindrical_to_cartesian(direction);
-        const Vector2f spherical_direction = proxy.sphere_to_square(cartesian_direction) * static_cast<float>(proxy.m_resolution);
-        const Vector2u pixel(
-            std::max(std::min(static_cast<size_t>(spherical_direction.x), proxy.m_resolution - 1), size_t(0)),
-            std::max(std::min(static_cast<size_t>(spherical_direction.y), proxy.m_resolution - 1), size_t(0)));
-        const Vector2u low_res_pixel(
-            std::max(std::min(static_cast<size_t>(spherical_direction.x), size_t(11)), size_t(0)),
-            std::max(std::min(static_cast<size_t>(spherical_direction.y), size_t(11)), size_t(0)));
-
-        const size_t high_res_index = pixel.y * proxy.m_resolution + pixel.x;
-        const size_t low_res_index = low_res_pixel.y * 11 + low_res_pixel.x;
-
-        const float radiance_scale = std::pow(4.0f, depth - 1);
-        const float radiance = radiance_scale * m_previous_iter_radiance_sum * area_weight_scale;
-
-        error_sum += std::abs(radiance - (*proxy.m_high_res_map)[high_res_index]);
-        low_res_error_sum += std::abs(radiance - proxy.m_map[low_res_index]);
+        float tree_pdf;
+        cylindrical_direction += sub_tree->sample(s, tree_pdf);
+        pdf *= tree_pdf;
     }
     else
     {
-        const float offset = std::pow(0.5f, depth);
-        Vector2f child_direction(direction - Vector2f(offset));
-        m_upper_left_node->evaluate_proxy(proxy, child_direction, error_sum, low_res_error_sum, depth + 1, area_weight_scale);
-        m_upper_right_node->evaluate_proxy(proxy, child_direction + Vector2f(offset * 2.0f, 0.0f), error_sum, low_res_error_sum, depth + 1, area_weight_scale);
-        m_lower_right_node->evaluate_proxy(proxy, child_direction + Vector2f(offset * 2.0f, offset * 2.0f), error_sum, low_res_error_sum, depth + 1, area_weight_scale);
-        m_lower_left_node->evaluate_proxy(proxy, child_direction + Vector2f(0.0f, offset * 2.0f), error_sum, low_res_error_sum, depth + 1, area_weight_scale);
+        cylindrical_direction += s;
     }
+
+    pdf *= 16.0f * 16.0f * RcpFourPi<float>();
+    cylindrical_direction *= 1.0f / 16.0f;
+    assert(cylindrical_direction.x >= 0.0f && cylindrical_direction.x < 1.0f);
+    assert(cylindrical_direction.y >= 0.0f && cylindrical_direction.y < 1.0f);
+    cylindrical_direction = clamp(cylindrical_direction, 0.0f, 1.0f);
+    direction = cylindrical_to_cartesian(cylindrical_direction);
+
+    return pdf;
 }
 
-void QuadTreeNode::evaluate_radiance_map(
-    const std::vector<float>&   map,
-    const size_t                map_res,
-    const Vector2f&             direction,
-    float&                      error_sum,
-    const size_t                depth,
-    const float                 area_weight_scale) const
+float RadianceProxy::pdf(
+    const Vector3f&             direction) const
 {
-    if (m_is_leaf)
-    {
-        const Vector2f scaled_direction = direction * static_cast<float>(map_res);
-        const Vector2u pixel(
-            std::max(std::min(static_cast<size_t>(scaled_direction.x), map_res - 1), size_t(0)),
-            std::max(std::min(static_cast<size_t>(scaled_direction.y), map_res - 1), size_t(0)));
+    const Vector2f cylindrical_direction = cartesian_to_cylindrical(direction) * 16.0f;
+    Vector2u pixel(
+        truncate<size_t>(cylindrical_direction.x),
+        truncate<size_t>(cylindrical_direction.y));
 
-        const float radiance_scale = std::pow(4.0f, depth - 1);
-        const float radiance = radiance_scale * m_previous_iter_radiance_sum * area_weight_scale;
+    pixel.x = std::min(pixel.x, static_cast<size_t>(15));
+    pixel.y = std::min(pixel.y, static_cast<size_t>(15));
 
-        error_sum += std::abs(radiance - map[pixel.y * map_res + pixel.x]);
-    }
-    else
+    // TODO: More precise mapping between directions and map pixels to avoid discrepancies in sampled
+    // and evaluated pdf values. There also seems to be another source causing these discrepancies.
+
+    ImageSampler<16> image_sampler(m_map);
+    ImageImportanceSampler<float, float> image_importance_sampler(16, 16);
+    image_importance_sampler.rebuild(image_sampler, nullptr);
+    float pdf = image_importance_sampler.get_pdf(pixel.x, pixel.y);
+
+    const QuadTreeNode* sub_tree = (*m_quadtree_strata)[pixel.y * 16 + pixel.x];
+
+    if (sub_tree)
     {
-        const float offset = std::pow(0.5f, depth);
-        Vector2f child_direction(direction - Vector2f(offset));
-        m_upper_left_node->evaluate_radiance_map(map, map_res, child_direction, error_sum, depth + 1, area_weight_scale);
-        m_upper_right_node->evaluate_radiance_map(map, map_res, child_direction + Vector2f(offset * 2.0f, 0.0f), error_sum, depth + 1, area_weight_scale);
-        m_lower_right_node->evaluate_radiance_map(map, map_res, child_direction + Vector2f(offset * 2.0f, offset * 2.0f), error_sum, depth + 1, area_weight_scale);
-        m_lower_left_node->evaluate_radiance_map(map, map_res, child_direction + Vector2f(0.0f, offset * 2.0f), error_sum, depth + 1, area_weight_scale);
+        Vector2f sub_direction(cylindrical_direction.x - pixel.x, cylindrical_direction.y - pixel.y);
+        pdf *= sub_tree->pdf(sub_direction);
     }
+
+    pdf *= 16.0f * 16.0f * RcpFourPi<float>();
+    return pdf;
 }
 
 struct DTreeRecord
@@ -1178,6 +844,7 @@ void DTree::sample(
     else
     {
         const Vector2f direction = m_root_node.sample(s, d_tree_sample.pdf);
+        d_tree_sample.pdf *= RcpFourPi<float>();
         d_tree_sample.direction = cylindrical_to_cartesian(direction);
         d_tree_sample.scattering_mode = m_scattering_mode;
     }
@@ -1194,7 +861,7 @@ float DTree::pdf(
         return RcpFourPi<float>();
 
     Vector2f dir = cartesian_to_cylindrical(direction);
-    return m_root_node.pdf(dir) / m_root_node.radiance_sum();
+    return m_root_node.pdf(dir) * RcpFourPi<float>();
 }
 
 void DTree::halve_sample_weight()
@@ -1285,8 +952,9 @@ void DTree::restructure(
         m_scattering_mode = is_glossy ? ScatteringMode::Glossy : ScatteringMode::Diffuse;
     }
 
-    build_radiance_map();
-    build_equal_area_maps();
+    m_radiance_proxy.build(
+        m_root_node,
+        RcpFourPi<float>() / m_previous_iter_sample_weight);
 }
 
 float DTree::sample_weight() const
@@ -1300,61 +968,6 @@ float DTree::mean() const
         return 0.0f;
 
     return m_root_node.radiance_sum() * (1.0f / m_previous_iter_sample_weight) * RcpFourPi<float>();
-}
-
-void DTree::build_radiance_map()
-{
-    m_mip_maps.clear();
-
-    if (m_previous_iter_sample_weight <= 0.0f || m_root_node.radiance_sum() <= 0.0f)
-    {
-        m_mip_maps.push_back(std::vector<float>{0.0f});
-    }
-    else
-    {
-        
-        const size_t depth = m_root_node.max_depth();
-        size_t map_res = 1;
-        for (size_t i = 0; i < depth; ++i)
-        {
-            m_mip_maps.push_back(std::vector<float>(map_res * map_res));
-            map_res *= 2;
-        }
-
-        map_res /= 2;
-        std::reverse(m_mip_maps.begin(), m_mip_maps.end());
-
-        // Build upper mip map
-        const float scale_factor = 1.0f / (FourPi<float>() * m_previous_iter_sample_weight);
-        m_root_node.build_radiance_map(m_mip_maps.front(), Vector2u(0, 0), 1, depth, map_res, scale_factor);
-
-        auto prev_mip = m_mip_maps.begin();
-        auto curr_mip = std::next(prev_mip);
-
-        while (curr_mip != m_mip_maps.end())
-        {
-            map_res /= 2;
-
-            for (size_t y = 0; y < map_res; ++y)
-                for (size_t x = 0; x < map_res; ++x)
-                {
-                    (*curr_mip)[y * map_res + x] = 0.25f * (
-                        (*prev_mip)[y * 2 * map_res * 2 + 2 * x] +
-                        (*prev_mip)[y * 2 * map_res * 2 + 2 * x + 1] +
-                        (*prev_mip)[(y * 2 + 1) * map_res * 2 + 2 * x] +
-                        (*prev_mip)[(y * 2 + 1) * map_res * 2 + 2 * x + 1]);
-                }
-
-            ++curr_mip;
-            ++prev_mip;
-        }
-    }
-}
-
-void DTree::build_equal_area_maps()
-{
-    m_radiance_proxy = RadianceProxy(m_mip_maps);
-    m_mip_maps.clear();
 }
 
 float DTree::radiance(
