@@ -58,43 +58,13 @@ namespace renderer {
 struct DTreeRecord;
 struct DTreeStatistics;
 struct VisualizerNode;
+class RadianceProxy;
 
 struct DTreeSample
 {
     foundation::Vector3f                direction;
     float                               pdf;
     ScatteringMode::Mode                scattering_mode;
-};
-
-// Clarberg [2008] Fast Equal-Area Mapping of the (Hemi) Sphere using SIMD
-class RadianceProxy
-{
-  public:
-    RadianceProxy() = default;
-    RadianceProxy(
-        const std::vector<std::vector<float>>&  mip_maps);
-
-    RadianceProxy(const RadianceProxy&          other);
-
-    foundation::Vector2f sphere_to_square(
-        const foundation::Vector3f&             direction) const;
-
-    foundation::Vector3f square_to_sphere(
-        const foundation::Vector2f&             direction) const;
-
-    float radiance (const foundation::Vector3f& direction) const;
-    float proxy_radiance (
-        const foundation::Vector3f&             direction) const;
-    
-    alignas(32) std::array<float, 12 * 12>  m_map;
-    std::shared_ptr<std::vector<float>>     m_high_res_map;
-    size_t                                  m_resolution;
-
-  private:
-    float bilerp(
-        const std::vector<float>&       mip,
-        const size_t                    mip_res,
-        const foundation::Vector2f&     pos) const;
 };
 
 // The node type for the D-Tree.
@@ -157,36 +127,24 @@ class QuadTreeNode
 
     float radiance(
         foundation::Vector2f&               direction) const;
-
-    void build_radiance_map(
-        std::vector<float>&                 radiance_map,
-        const foundation::Vector2u&         index,
-        const size_t                        level,
-        const size_t                        max_level,
-        const size_t                        map_res,
-        const float                         area_weight_scale) const;
-
-    void evaluate_proxy(
-        const RadianceProxy&            proxy,
-        const foundation::Vector2f&     direction,
-        float&                          error_sum,
-        float&                          low_res_error_sum,
-        const size_t                    depth,
-        const float                     area_weight_scale) const;
-
-    void evaluate_radiance_map(
-        const std::vector<float>&       map,
-        const size_t                    map_res,
-        const foundation::Vector2f&     direction,
-        float&                          error_sum,
-        const size_t                    depth,
-        const float                     area_weight_scale) const;
+    
+    void build_radiance_proxy(
+        RadianceProxy&                      radiance_proxy,
+        const float                         radiance_factor,
+        const foundation::Vector2u          pixel_origin = foundation::Vector2u(0, 0),
+        const size_t                        depth = 0) const;
+    
+    // Recursively integrate the pdf under this node.
+    float integrate_pdf(const float         scale) const;
 
 private:
     // Recursively sample a direction based on the directional radiance distribution.
     const foundation::Vector2f sample_recursive(
         foundation::Vector2f&               sample,
         float&                              pdf) const;
+
+    float pdf_recursive(
+        foundation::Vector2f&               direction) const;
 
     QuadTreeNode* choose_node(
         foundation::Vector2f&               direction) const;
@@ -203,6 +161,26 @@ private:
     float                               m_previous_iter_radiance_sum;
     
     bool                                m_is_leaf;
+};
+
+class RadianceProxy
+{
+  public:
+    void build(
+        const QuadTreeNode&                     quadtree_root,
+        const float                             radiance_scale);
+    float radiance (const foundation::Vector3f& direction) const;
+    float proxy_radiance (
+        const foundation::Vector3f&             direction) const;
+    float sample(
+        SamplingContext&                        sampling_context,
+        foundation::Vector3f&                   direction) const;
+    float pdf(const foundation::Vector3f&       direction) const;
+    
+    alignas(32) std::array<float, 16 * 16>      m_map;
+
+    std::shared_ptr<
+    std::array<const QuadTreeNode*, 16 * 16>>   m_quadtree_strata;
 };
 
 // The D-tree interface.
@@ -255,8 +233,6 @@ class DTree
     float radiance(
         const foundation::Vector3f&         direction) const;
 
-    void build_radiance_map();
-    void build_equal_area_maps();
     const RadianceProxy& get_radiance_proxy() const;
 
   private:
