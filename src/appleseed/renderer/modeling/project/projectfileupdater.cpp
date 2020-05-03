@@ -1322,9 +1322,6 @@ namespace
         {
             for (BSDF& bsdf : assembly.bsdfs())
                 update_bsdf_inputs(bsdf);
-
-            for (Material& material : assembly.materials())
-                update_material_inputs(material);
         }
 
         static void update_bsdf_inputs(BSDF& bsdf)
@@ -1338,23 +1335,6 @@ namespace
                     params.insert("roughness", 0.5f);
                 if (!params.strings().exist("sheen_tint"))
                     params.insert("sheen_tint", 0.5f);
-            }
-        }
-
-        static void update_material_inputs(Material& material)
-        {
-            // Don't rely on DisneyMaterialFactory().get_model() because appleseed needs
-            // to be able to update projects even when built without Disney material support
-            // (i.e. the APPLESEED_WITH_DISNEY_MATERIAL preprocessor symbol is undefined).
-            if (strcmp(material.get_model(), "disney_material") == 0)
-            {
-                ParamArray& params = material.get_parameters();
-                for (DictionaryDictionary::iterator& i : params.dictionaries())
-                {
-                    Dictionary& layer_params = i.value();
-                    if (!layer_params.strings().exist("roughness"))
-                        layer_params.insert("roughness", 0.5f);
-                }
             }
         }
     };
@@ -2353,6 +2333,7 @@ namespace
             {
                 ParamArray& root = configuration.get_parameters();
                 move_if_exist(root, "sppm.initial_photon_lookup_radius", "sppm.initial_radius");
+                root.insert_path("sppm.enable_importons", false);
             }
         }
     };

@@ -59,8 +59,6 @@ set (foundation_array_sources
     foundation/array/exception.h
     foundation/array/keyframedarray.cpp
     foundation/array/keyframedarray.h
-    foundation/array/meshalgorithm.cpp
-    foundation/array/meshalgorithm.h
 )
 list (APPEND appleseed_sources
     ${foundation_array_sources}
@@ -482,31 +480,31 @@ source_group ("foundation\\memory" FILES
     ${foundation_memory_sources}
 )
 
-set (foundation_mesh_sources
-    foundation/mesh/binarymeshfilereader.cpp
-    foundation/mesh/binarymeshfilereader.h
-    foundation/mesh/binarymeshfilewriter.cpp
-    foundation/mesh/binarymeshfilewriter.h
-    foundation/mesh/genericmeshfilereader.cpp
-    foundation/mesh/genericmeshfilereader.h
-    foundation/mesh/genericmeshfilewriter.cpp
-    foundation/mesh/genericmeshfilewriter.h
-    foundation/mesh/imeshbuilder.h
-    foundation/mesh/imeshfilereader.h
-    foundation/mesh/imeshfilewriter.h
-    foundation/mesh/imeshwalker.h
-    foundation/mesh/meshbuilderbase.h
-    foundation/mesh/objmeshfilelexer.h
-    foundation/mesh/objmeshfilereader.cpp
-    foundation/mesh/objmeshfilereader.h
-    foundation/mesh/objmeshfilewriter.cpp
-    foundation/mesh/objmeshfilewriter.h
+set (foundation_meshio_sources
+    foundation/meshio/binarymeshfilereader.cpp
+    foundation/meshio/binarymeshfilereader.h
+    foundation/meshio/binarymeshfilewriter.cpp
+    foundation/meshio/binarymeshfilewriter.h
+    foundation/meshio/genericmeshfilereader.cpp
+    foundation/meshio/genericmeshfilereader.h
+    foundation/meshio/genericmeshfilewriter.cpp
+    foundation/meshio/genericmeshfilewriter.h
+    foundation/meshio/imeshbuilder.h
+    foundation/meshio/imeshfilereader.h
+    foundation/meshio/imeshfilewriter.h
+    foundation/meshio/imeshwalker.h
+    foundation/meshio/meshbuilderbase.h
+    foundation/meshio/objmeshfilelexer.h
+    foundation/meshio/objmeshfilereader.cpp
+    foundation/meshio/objmeshfilereader.h
+    foundation/meshio/objmeshfilewriter.cpp
+    foundation/meshio/objmeshfilewriter.h
 )
 list (APPEND appleseed_sources
-    ${foundation_mesh_sources}
+    ${foundation_meshio_sources}
 )
-source_group ("foundation\\mesh" FILES
-    ${foundation_mesh_sources}
+source_group ("foundation\\meshio" FILES
+    ${foundation_meshio_sources}
 )
 
 set (foundation_meta_benchmarks_sources
@@ -659,11 +657,6 @@ set (foundation_meta_tests_sources
     foundation/meta/tests/test_z85.cpp
     foundation/meta/tests/test_zip.cpp
 )
-if (WITH_DISNEY_MATERIAL)
-    list (APPEND foundation_meta_tests_sources
-        foundation/meta/tests/test_seexpr.cpp
-    )
-endif ()
 list (APPEND appleseed_sources
     ${foundation_meta_tests_sources}
 )
@@ -998,12 +991,6 @@ set (foundation_utility_sources
     foundation/utility/zip.cpp
     foundation/utility/zip.h
 )
-if (WITH_DISNEY_MATERIAL)
-    list (APPEND foundation_utility_sources
-        foundation/utility/seexpr.cpp
-        foundation/utility/seexpr.h
-    )
-endif ()
 list (APPEND appleseed_sources
     ${foundation_utility_sources}
 )
@@ -1660,6 +1647,8 @@ set (renderer_modeling_bsdf_sources
     renderer/modeling/bsdf/glassbsdf.h
     renderer/modeling/bsdf/glossybrdf.cpp
     renderer/modeling/bsdf/glossybrdf.h
+    renderer/modeling/bsdf/glossylayerbsdf.cpp
+    renderer/modeling/bsdf/glossylayerbsdf.h
     renderer/modeling/bsdf/hairbsdf.cpp
     renderer/modeling/bsdf/hairbsdf.h
     renderer/modeling/bsdf/ibsdffactory.h
@@ -1686,12 +1675,6 @@ set (renderer_modeling_bsdf_sources
     renderer/modeling/bsdf/specularbtdf.h
     renderer/modeling/bsdf/specularhelper.h
 )
-if (WITH_DISNEY_MATERIAL)
-    list (APPEND renderer_modeling_bsdf_sources
-        renderer/modeling/bsdf/disneylayeredbrdf.cpp
-        renderer/modeling/bsdf/disneylayeredbrdf.h
-    )
-endif ()
 list (APPEND appleseed_sources
     ${renderer_modeling_bsdf_sources}
 )
@@ -1980,12 +1963,6 @@ set (renderer_modeling_material_sources
     renderer/modeling/material/oslmaterial.cpp
     renderer/modeling/material/oslmaterial.h
 )
-if (WITH_DISNEY_MATERIAL)
-    list (APPEND renderer_modeling_material_sources
-        renderer/modeling/material/disneymaterial.cpp
-        renderer/modeling/material/disneymaterial.h
-    )
-endif ()
 list (APPEND appleseed_sources
     ${renderer_modeling_material_sources}
 )
@@ -2077,6 +2054,10 @@ set (renderer_modeling_project_sources
     renderer/modeling/project/projecttracker.cpp
     renderer/modeling/project/projecttracker.h
     renderer/modeling/project/renderingtimer.h
+    renderer/modeling/project/xmlprojectfilereader.cpp
+    renderer/modeling/project/xmlprojectfilereader.h
+    renderer/modeling/project/xmlprojectfilewriter.cpp
+    renderer/modeling/project/xmlprojectfilewriter.h
 )
 list (APPEND appleseed_sources
     ${renderer_modeling_project_sources}
@@ -2223,7 +2204,6 @@ set (renderer_utility_sources
     renderer/utility/projectpoints.cpp
     renderer/utility/projectpoints.h
     renderer/utility/rgbspectrum.h
-    renderer/utility/seexpr.h
     renderer/utility/settingsparsing.cpp
     renderer/utility/settingsparsing.h
     renderer/utility/shadowterminator.h
@@ -2385,10 +2365,6 @@ link_against_osl (appleseed)
 
 if (WITH_EMBREE)
     link_against_embree (appleseed)
-endif ()
-
-if (WITH_DISNEY_MATERIAL)
-    link_against_seexpr (appleseed)
 endif ()
 
 if (WITH_GPU)

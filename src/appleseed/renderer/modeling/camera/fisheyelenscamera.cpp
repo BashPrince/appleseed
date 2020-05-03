@@ -37,7 +37,6 @@
 #include "renderer/utility/transformsequence.h"
 
 // appleseed.foundation headers.
-#include "foundation/image/canvasproperties.h"
 #include "foundation/image/image.h"
 #include "foundation/math/dual.h"
 #include "foundation/math/matrix.h"
@@ -189,10 +188,10 @@ namespace
             {
                 const Vector2d px(ndc.get_value() + ndc.get_dx());
                 const Vector2d py(ndc.get_value() + ndc.get_dy());
-                ray.m_rx.m_org = ray.m_org;
-                ray.m_ry.m_org = ray.m_org;
-                ray.m_rx.m_dir = normalize(transform.vector_to_parent(-ndc_to_camera(px)));
-                ray.m_ry.m_dir = normalize(transform.vector_to_parent(-ndc_to_camera(py)));
+                ray.m_rx_org = ray.m_org;
+                ray.m_ry_org = ray.m_org;
+                ray.m_rx_dir = normalize(transform.vector_to_parent(-ndc_to_camera(px)));
+                ray.m_ry_dir = normalize(transform.vector_to_parent(-ndc_to_camera(py)));
                 ray.m_has_differentials = true;
             }
         }

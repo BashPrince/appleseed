@@ -38,8 +38,6 @@
 #include "renderer/modeling/bsdf/bsdfwrapper.h"
 #include "renderer/modeling/bsdf/fresnel.h"
 #include "renderer/modeling/bsdf/microfacethelper.h"
-#include "renderer/modeling/bssrdf/sss.h"
-#include "renderer/utility/messagecontext.h"
 #include "renderer/utility/paramarray.h"
 
 // appleseed.foundation headers.
@@ -48,12 +46,10 @@
 #include "foundation/math/dual.h"
 #include "foundation/math/fresnel.h"
 #include "foundation/math/microfacet.h"
-#include "foundation/math/minmax.h"
 #include "foundation/math/sampling/mappings.h"
 #include "foundation/math/vector.h"
 #include "foundation/utility/api/specializedapiarrays.h"
 #include "foundation/utility/makevector.h"
-#include "foundation/utility/otherwise.h"
 
 // Standard headers.
 #include <algorithm>
@@ -187,7 +183,7 @@ namespace
                     sample.m_value.m_beauty = sample.m_value.m_glossy;
                     sample.m_incoming = Dual3f(local_geometry.m_shading_basis.transform_to_parent(wi));
                     sample.m_min_roughness = values->m_roughness;
-                    sample.compute_reflected_differentials(local_geometry, outgoing);
+                    sample.compute_glossy_reflected_differentials(local_geometry, values->m_roughness, outgoing);
                 }
                 else
                 {
@@ -210,7 +206,7 @@ namespace
                             sample.m_value.m_glossy);
                         sample.m_value.m_beauty = sample.m_value.m_glossy;
 
-                        sample.compute_reflected_differentials(local_geometry, outgoing);
+                        sample.compute_glossy_reflected_differentials(local_geometry, values->m_roughness, outgoing);
                     }
                 }
             }
@@ -238,7 +234,7 @@ namespace
                     sample.m_value.m_beauty = sample.m_value.m_diffuse;
                     sample.m_aov_components.m_albedo = values->m_diffuse_reflectance;
 
-                    sample.compute_reflected_differentials(local_geometry, outgoing);
+                    sample.compute_diffuse_differentials(outgoing);
                 }
             }
         }

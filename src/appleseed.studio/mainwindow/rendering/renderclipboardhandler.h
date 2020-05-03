@@ -29,24 +29,18 @@
 
 #pragma once
 
+// appleseed.qtcommon headers.
+#include "widgets/icapturablewidget.h"
+
 // Qt headers.
 #include <QObject>
 
 // Forward declarations.
 class QEvent;
-class QImage;
 class QWidget;
 
 namespace appleseed {
 namespace studio {
-
-class ICapturableWidget
-{
-  public:
-    virtual ~ICapturableWidget() = default;
-
-    virtual QImage capture() = 0;
-};
 
 class RenderClipboardHandler
   : public QObject
@@ -54,13 +48,13 @@ class RenderClipboardHandler
     Q_OBJECT
 
   public:
-    RenderClipboardHandler(QWidget* widget, ICapturableWidget* capturable_widget);
+    RenderClipboardHandler(QWidget* widget, qtcommon::ICapturableWidget* capturable_widget);
 
     ~RenderClipboardHandler() override;
 
   private:
-    QWidget*            m_widget;
-    ICapturableWidget*  m_capturable_widget;
+    QWidget*                        m_widget;
+    qtcommon::ICapturableWidget*    m_capturable_widget;
 
     bool eventFilter(QObject* object, QEvent* event) override;
 };

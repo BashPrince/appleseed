@@ -38,15 +38,23 @@ import subprocess
 import sys
 import urllib
 
+# We can't import modules from parent directories without modifying sys.path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+import utils
+
 
 # --------------------------------------------------------------------------------------------------
 # Constants.
 # --------------------------------------------------------------------------------------------------
 
+VERSION = "1.0"
+
 APPLESEED_BASE_ARGS = ""
 
 VALUE_THRESHOLD = 2                 # max allowed absolute diff between two pixel components, in [0, 255]
 MAX_DIFFERING_COMPONENTS = 4 * 2    # max number of pixel components that are allowed to differ significantly
+
+CURRENT_TIME = datetime.datetime.now()
 
 
 # --------------------------------------------------------------------------------------------------
@@ -228,8 +236,13 @@ class ReportWriter:
         self.file.flush()
 
     def __write_header(self, args):
+        script_path = os.path.realpath(__file__)
+
         self.file.write(self.__render(self.header_template,
-                                      {'test-date': datetime.datetime.now(),
+                                      {'test-date': CURRENT_TIME,
+                                       'python-version': utils.get_python_version(),
+                                       'script-path': script_path,
+                                       'script-version': VERSION,
                                        'appleseed-binary-path': args.tool_path,
                                        'max-abs-diff-allowed': VALUE_THRESHOLD,
                                        'max-diff-comps-count-allowed': MAX_DIFFERING_COMPONENTS}))
@@ -475,6 +488,13 @@ def render_test_scenes(script_directory, args):
 # Entry point.
 # --------------------------------------------------------------------------------------------------
 
+def print_configuration(appleseed_path, appleseed_args):
+    print("Configuration:")
+    print("  Binary         : {0}".format(appleseed_path))
+    print("  Arguments      : {0}".format(appleseed_args))
+    print()
+
+
 def main():
     colorama.init()
 
@@ -499,10 +519,8 @@ def main():
     if args.args:
         appleseed_args += " {0}".format(" ".join(args.args))
 
-    print("Configuration:")
-    print("  Binary        : {0}".format(args.tool_path))
-    print("  Arguments     : {0}".format(appleseed_args))
-    print()
+    utils.print_runtime_details("runtestsuite", VERSION, os.path.realpath(__file__), CURRENT_TIME)
+    print_configuration(args.tool_path, appleseed_args)
 
     start_time = datetime.datetime.now()
     rendered_scene_count, passing_scene_count = render_test_scenes(script_directory, args)
@@ -512,16 +530,16 @@ def main():
 
     print()
     print("Results:")
-    print("  Success Rate  : {0}{1:.2f} %{2}"
+    print("  Success Rate   : {0}{1:.2f} %{2}"
           .format(colorama.Fore.RED if passing_scene_count < rendered_scene_count else colorama.Fore.GREEN,
                   success,
                   colorama.Fore.RESET))
-    print("  Failures      : {0}{1} out of {2} test scene(s){3}"
+    print("  Failures       : {0}{1} out of {2} test scene(s){3}"
           .format(colorama.Fore.RED if passing_scene_count < rendered_scene_count else colorama.Fore.GREEN,
                   rendered_scene_count - passing_scene_count,
                   rendered_scene_count,
                   colorama.Fore.RESET))
-    print("  Total Time    : {0}".format(format_duration(end_time - start_time)))
+    print("  Total Time     : {0}".format(format_duration(end_time - start_time)))
 
 
 if __name__ == "__main__":

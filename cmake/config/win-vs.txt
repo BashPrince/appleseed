@@ -186,9 +186,9 @@ set (c_compiler_flags_profile
     /GL                                     # Enable link-time code generation
 )
 set (exe_linker_flags_profile
+    /DEBUG                                  # Generate Debug Info
     /LTCG                                   # Use Link Time Code Generation
     /INCREMENTAL:NO                         # Disable Incremental Linking
-    /DEBUG                                  # Generate Debug Info
 )
 set (shared_lib_linker_flags_profile
     ${exe_linker_flags_profile}
@@ -348,28 +348,6 @@ macro (link_against_osl target)
                 optimized   ${APPLESEED_DEPS_STAGE_DIR}/llvm-release/lib/${lib}.lib
             )
         endforeach ()
-    endif ()
-endmacro ()
-
-macro (link_against_seexpr target)
-    if (USE_FIND_PACKAGE_FOR_SEEXPR)
-        target_link_libraries (${target} ${SEEXPR_LIBRARIES})
-    else ()
-        target_link_libraries (${target}
-            debug       ${APPLESEED_DEPS_STAGE_DIR}/seexpr-debug/lib/SeExpr.lib
-            optimized   ${APPLESEED_DEPS_STAGE_DIR}/seexpr-release/lib/SeExpr.lib
-        )
-    endif ()
-endmacro ()
-
-macro (link_against_seexpreditor target)
-    if (USE_FIND_PACKAGE_FOR_SEEXPR)
-        target_link_libraries (${target} ${SEEXPREDITOR_LIBRARIES})
-    else ()
-        target_link_libraries (${target}
-            debug       ${APPLESEED_DEPS_STAGE_DIR}/seexpr-debug/lib/SeExprEditor.lib
-            optimized   ${APPLESEED_DEPS_STAGE_DIR}/seexpr-release/lib/SeExprEditor.lib
-        )
     endif ()
 endmacro ()
 

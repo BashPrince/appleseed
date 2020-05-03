@@ -48,8 +48,6 @@
 #include "foundation/math/dual.h"
 #include "foundation/math/fresnel.h"
 #include "foundation/math/microfacet.h"
-#include "foundation/math/minmax.h"
-#include "foundation/math/sampling/mappings.h"
 #include "foundation/math/scalar.h"
 #include "foundation/math/vector.h"
 #include "foundation/utility/api/specializedapiarrays.h"
@@ -387,8 +385,21 @@ namespace
                 sample.m_min_roughness = values->m_roughness;
 
                 if (is_refraction)
-                    sample.compute_transmitted_differentials(local_geometry, 1.0f / eta, outgoing);
-                else sample.compute_reflected_differentials(local_geometry, outgoing);
+                {
+                    sample.compute_glossy_transmitted_differentials(
+                        local_geometry,
+                        values->m_roughness,
+                        1.0f / eta,
+                        local_geometry.m_shading_point->is_entering(),
+                        outgoing);
+                }
+                else
+                {
+                    sample.compute_glossy_reflected_differentials(
+                        local_geometry,
+                        values->m_roughness,
+                        outgoing);
+                }
             }
         }
 

@@ -169,7 +169,7 @@ void BSDFWrapper<BSDFImpl, Cull>::sample(
         //                 outgoing.get_value(),
         //                 sample.m_incoming.get_value(),
         //                 modes);
-        // 
+        //
         //         assert(
         //             (sample.m_probability == BSDFImpl::DiracDelta && ref_probability == 0.0f) ||
         //             (sample.m_probability > 0.0f && feq(sample.m_probability, ref_probability, 1.0e-2f)) ||

@@ -49,8 +49,6 @@
 
 // appleseed.foundation headers.
 #include "foundation/containers/dictionary.h"
-#include "foundation/image/canvasproperties.h"
-#include "foundation/image/image.h"
 #include "foundation/math/dual.h"
 #include "foundation/math/matrix.h"
 #include "foundation/math/sampling/imageimportancesampler.h"
@@ -340,13 +338,10 @@ namespace
             {
                 const Vector2d px(ndc.get_value() + ndc.get_dx());
                 const Vector2d py(ndc.get_value() + ndc.get_dy());
-
-                ray.m_rx.m_org = ray.m_org;
-                ray.m_ry.m_org = ray.m_org;
-
-                ray.m_rx.m_dir = compute_ray_direction(px, lens_point, transform);
-                ray.m_ry.m_dir = compute_ray_direction(py, lens_point, transform);
-
+                ray.m_rx_org = ray.m_org;
+                ray.m_ry_org = ray.m_org;
+                ray.m_rx_dir = compute_ray_direction(px, lens_point, transform);
+                ray.m_ry_dir = compute_ray_direction(py, lens_point, transform);
                 ray.m_has_differentials = true;
             }
         }

@@ -38,26 +38,19 @@
 #include "renderer/modeling/bsdf/bsdfwrapper.h"
 #include "renderer/modeling/bsdf/fresnel.h"
 #include "renderer/modeling/bsdf/microfacethelper.h"
-#include "renderer/utility/messagecontext.h"
 #include "renderer/utility/paramarray.h"
 
 // appleseed.foundation headers.
 #include "foundation/containers/dictionary.h"
-#include "foundation/math/basis.h"
 #include "foundation/math/dual.h"
 #include "foundation/math/microfacet.h"
-#include "foundation/math/minmax.h"
-#include "foundation/math/sampling/mappings.h"
 #include "foundation/math/vector.h"
 #include "foundation/utility/api/specializedapiarrays.h"
 #include "foundation/utility/makevector.h"
-#include "foundation/utility/otherwise.h"
 
 // Standard headers.
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <string>
 
 // Forward declarations.
 namespace foundation    { class IAbortSwitch; }
@@ -157,8 +150,9 @@ namespace
             const InputValues* values = static_cast<const InputValues*>(data);
 
             const FresnelFun f(values->m_precomputed.m_outside_ior / values->m_ior);
-            MicrofacetBRDFHelper<BlinnMDF, false>::sample(
+            MicrofacetBRDFHelper<BlinnMDF>::sample(
                 sampling_context,
+                1.0f,
                 values->m_exponent,
                 values->m_exponent,
                 f,
@@ -166,8 +160,8 @@ namespace
                 outgoing,
                 sample);
             sample.m_value.m_beauty = sample.m_value.m_glossy;
-
             sample.m_min_roughness = 1.0f;
+            sample.compute_glossy_reflected_differentials(local_geometry, 1.0f, outgoing);
         }
 
         float evaluate(
@@ -187,7 +181,7 @@ namespace
             const FresnelFun f(values->m_precomputed.m_outside_ior / values->m_ior);
 
             const float pdf =
-                MicrofacetBRDFHelper<BlinnMDF, false>::evaluate(
+                MicrofacetBRDFHelper<BlinnMDF>::evaluate(
                     values->m_exponent,
                     values->m_exponent,
                     f,
@@ -216,7 +210,7 @@ namespace
             const InputValues* values = static_cast<const InputValues*>(data);
 
             const float pdf =
-                MicrofacetBRDFHelper<BlinnMDF, false>::pdf(
+                MicrofacetBRDFHelper<BlinnMDF>::pdf(
                     values->m_exponent,
                     values->m_exponent,
                     local_geometry,

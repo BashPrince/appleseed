@@ -133,8 +133,8 @@ namespace
         {
             // 1/4 of a pixel, like in RenderMan RIS.
             const CanvasProperties& c = frame.image().properties();
-            m_image_point_dx = Vector2d(1.0 / (4.0 * c.m_canvas_width), 0.0);
-            m_image_point_dy = Vector2d(0.0, -1.0 / (4.0 * c.m_canvas_height));
+            m_image_point_dx = Vector2d(1.0 / (2.0 * c.m_canvas_width), 0.0);
+            m_image_point_dy = Vector2d(0.0, -1.0 / (2.0 * c.m_canvas_height));
         }
 
         ~GenericSampleRenderer() override
@@ -262,8 +262,8 @@ namespace
                 if (primary_ray.m_has_differentials)
                 {
                     const double t = shading_point_ptr->get_distance();
-                    primary_ray.m_rx.m_org = primary_ray.m_rx.point_at(t);
-                    primary_ray.m_ry.m_org = primary_ray.m_ry.point_at(t);
+                    primary_ray.m_rx_org = primary_ray.m_rx_org + t * primary_ray.m_rx_dir;
+                    primary_ray.m_ry_org = primary_ray.m_ry_org + t * primary_ray.m_ry_dir;
                 }
             }
 

@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>appleseed.bench v0.6 - Open Source CPU Benchmark</string>
+   <string>appleseed.bench v0.7 - Open Source CPU Benchmark</string>
   </property>
   <property name="locale">
    <locale language="C" country="AnyCountry"/>
@@ -636,6 +636,16 @@
               </widget>
              </item>
             </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_result_submission_warning">
+            <property name="styleSheet">
+             <string notr="true">color: red</string>
+            </property>
+            <property name="text">
+             <string>TextLabel</string>
+            </property>
            </widget>
           </item>
          </layout>

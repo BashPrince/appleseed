@@ -87,8 +87,6 @@ set (mainwindow_rendering_sources
     mainwindow/rendering/qttilecallback.h
     mainwindow/rendering/renderingmanager.cpp
     mainwindow/rendering/renderingmanager.h
-    mainwindow/rendering/renderwidget.cpp
-    mainwindow/rendering/renderwidget.h
 )
 list (APPEND appleseed.bench_sources
     ${mainwindow_rendering_sources}
@@ -101,6 +99,7 @@ set (mainwindow_sources
     mainwindow/applicationsettingswindow.cpp
     mainwindow/applicationsettingswindow.h
     mainwindow/applicationsettingswindow.ui
+    mainwindow/constants.h
     mainwindow/mainwindow.cpp
     mainwindow/mainwindow.h
     mainwindow/mainwindow.ui

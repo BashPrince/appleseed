@@ -59,7 +59,6 @@
 #include <cassert>
 #include <cmath>
 #include <cstddef>
-#include <iomanip>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -355,7 +354,7 @@ namespace
                 sample.m_value.m_beauty = sample.m_value.m_diffuse;
                 sample.m_value.m_beauty += sample.m_value.m_glossy;
                 sample.m_min_roughness = values->m_roughness;
-                sample.compute_reflected_differentials(local_geometry, outgoing);
+                sample.compute_glossy_reflected_differentials(local_geometry, values->m_roughness, outgoing);
             }
         }
 

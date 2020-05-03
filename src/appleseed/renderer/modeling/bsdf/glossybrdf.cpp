@@ -39,7 +39,6 @@
 #include "renderer/modeling/bsdf/fresnel.h"
 #include "renderer/modeling/bsdf/microfacethelper.h"
 #include "renderer/modeling/bsdf/specularhelper.h"
-#include "renderer/utility/messagecontext.h"
 #include "renderer/utility/paramarray.h"
 
 // appleseed.foundation headers.
@@ -47,18 +46,14 @@
 #include "foundation/math/basis.h"
 #include "foundation/math/dual.h"
 #include "foundation/math/microfacet.h"
-#include "foundation/math/minmax.h"
-#include "foundation/math/sampling/mappings.h"
 #include "foundation/math/vector.h"
 #include "foundation/utility/api/specializedapiarrays.h"
 #include "foundation/utility/makevector.h"
-#include "foundation/utility/otherwise.h"
 
 // Standard headers.
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <string>
 
 // Forward declarations.
 namespace foundation    { class IAbortSwitch; }
@@ -181,8 +176,9 @@ namespace
                     alpha_x,
                     alpha_y);
 
-                MicrofacetBRDFHelper<GGXMDF, true>::sample(
+                MicrofacetBRDFHelper<GGXMDF>::sample(
                     sampling_context,
+                    values->m_roughness,
                     alpha_x,
                     alpha_y,
                     f,
@@ -234,7 +230,7 @@ namespace
                 values->m_fresnel_weight);
 
             const float pdf =
-                MicrofacetBRDFHelper<GGXMDF, true>::evaluate(
+                MicrofacetBRDFHelper<GGXMDF>::evaluate(
                     alpha_x,
                     alpha_y,
                     f,
@@ -276,7 +272,7 @@ namespace
                 alpha_y);
 
             const float pdf =
-                MicrofacetBRDFHelper<GGXMDF, true>::pdf(
+                MicrofacetBRDFHelper<GGXMDF>::pdf(
                     alpha_x,
                     alpha_y,
                     local_geometry,
