@@ -30,12 +30,14 @@
 
 // appleseed.renderer headers.
 #include "renderer/global/globaltypes.h"
+#include "renderer/kernel/lighting/bsdfproxy.h"
 #include "renderer/kernel/lighting/gpt/gptparameters.h"
 #include "renderer/kernel/lighting/scatteringmode.h"
 #include "renderer/modeling/scene/scene.h"
 
 // appleseed.foundation headers.
 #include "foundation/math/aabb.h"
+#include "foundation/math/sampling/imageimportancesampler.h"
 #include "foundation/math/vector.h"
 #include "foundation/utility/job/jobqueue.h"
 
@@ -166,9 +168,13 @@ private:
 class RadianceProxy
 {
   public:
+    RadianceProxy();
+    RadianceProxy(const RadianceProxy&          other);
     void build(
         const QuadTreeNode&                     quadtree_root,
         const float                             radiance_scale);
+    void build_product(
+        const BSDFProxy&                        bsdf_proxy);
     float radiance (const foundation::Vector3f& direction) const;
     float proxy_radiance (
         const foundation::Vector3f&             direction) const;
@@ -181,6 +187,8 @@ class RadianceProxy
 
     std::shared_ptr<
     std::array<const QuadTreeNode*, 16 * 16>>   m_quadtree_strata;
+    foundation::ImageImportanceSampler<float, float>
+                                                m_image_importance_sampler;
 };
 
 // The D-tree interface.

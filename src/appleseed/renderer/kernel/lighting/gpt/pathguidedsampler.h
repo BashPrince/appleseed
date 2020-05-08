@@ -63,6 +63,8 @@ class PathGuidedSampler
         const ScatteringMode::Mode      sampled_mode) const;
 
     DTree*                              m_d_tree;
+    RadianceProxy                       m_radiance_proxy;
+    bool                                m_use_proxy;
     const float                         m_bsdf_sampling_fraction;
     const bool                          m_sd_tree_is_built;
     const bool                          m_enable_path_guiding;

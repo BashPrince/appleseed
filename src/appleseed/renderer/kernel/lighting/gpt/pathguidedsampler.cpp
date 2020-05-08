@@ -2,6 +2,7 @@
 #include "pathguidedsampler.h"
 
 // appleseed.renderer headers.
+#include "renderer/kernel/lighting/bsdfproxy.h"
 #include "renderer/kernel/lighting/tracer.h"
 #include "renderer/kernel/shading/directshadingcomponents.h"
 #include "renderer/kernel/shading/shadingcontext.h"
@@ -42,9 +43,15 @@ PathGuidedSampler::PathGuidedSampler(
   , m_bsdf_sampling_fraction(bsdf_sampling_fraction)
   , m_sd_tree_is_built(sd_tree_is_built)
   , m_guided_bounce_mode(guided_bounce_mode)
+  , m_radiance_proxy(d_tree->get_radiance_proxy())
+  , m_use_proxy(false)
 {
     assert(m_d_tree);
     assert(m_bsdf_sampling_fraction >= 0.0f && m_bsdf_sampling_fraction <= 1.0f);
+
+    BSDFProxy bsdf_proxy;
+    m_use_proxy = m_bsdf.add_parameters_to_proxy(bsdf_proxy, bsdf_data, bsdf_sampling_modes);
+    m_radiance_proxy.build_product(bsdf_proxy);
 }
 
 bool PathGuidedSampler::sample(
@@ -158,7 +165,17 @@ bool PathGuidedSampler::sample(
     else
     {
         DTreeSample d_tree_sample;
-        m_d_tree->sample(sampling_context, d_tree_sample, enable_modes_before_sampling(m_bsdf_sampling_modes));
+
+        if (m_use_proxy)
+        {
+            d_tree_sample.pdf = m_radiance_proxy.sample(sampling_context, d_tree_sample.direction);
+            d_tree_sample.scattering_mode = ScatteringMode::Diffuse;
+        }
+        else
+        {
+            m_d_tree->sample(sampling_context, d_tree_sample, enable_modes_before_sampling(m_bsdf_sampling_modes));
+        }
+
         const ScatteringMode::Mode scattering_mode = set_mode_after_sampling(d_tree_sample.scattering_mode);
 
         if (scattering_mode == ScatteringMode::None)
@@ -211,7 +228,12 @@ float PathGuidedSampler::guided_path_extension_pdf(
     }
 
     if (!d_tree_pdf_is_set)
-        d_tree_pdf = m_d_tree->pdf(incoming, enable_modes_before_sampling(m_bsdf_sampling_modes));
+    {
+        if (m_use_proxy)
+            d_tree_pdf = m_radiance_proxy.pdf(incoming);
+        else
+            d_tree_pdf = m_d_tree->pdf(incoming, enable_modes_before_sampling(m_bsdf_sampling_modes));
+    }
         
     return lerp(d_tree_pdf, bsdf_pdf, m_bsdf_sampling_fraction);
 }

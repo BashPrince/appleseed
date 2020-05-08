@@ -34,9 +34,8 @@
 #include "renderer/modeling/camera/camera.h"
 
 // appleseed.foundation headers.
-#include "foundation/math/scalar.h"
-#include "foundation/math/sampling/imageimportancesampler.h"
 #include "foundation/math/sampling/mappings.h"
+#include "foundation/math/scalar.h"
 #include "foundation/string/string.h"
 #include "foundation/utility/job/ijob.h"
 #include "foundation/utility/job/jobmanager.h"
@@ -598,6 +597,26 @@ void QuadTreeNode::build_radiance_proxy(
     }
 }
 
+// Helper class for ImageImportanceSampler generation.
+template<std::size_t N>
+class ImageSampler
+{
+  public:
+    ImageSampler(
+        const std::array<float, N * N>&       radiance_map)
+        : m_radiance_map(radiance_map)
+    {
+    }
+
+    void sample(const size_t x, const size_t y, float& payload, float& importance)
+    {
+        payload = importance = m_radiance_map[y * N + x];
+    }
+
+  private:
+    const std::array<float, N * N>&   m_radiance_map;
+};
+
 // Radiance proxy implementation.
 
 void RadianceProxy::build(
@@ -614,6 +633,13 @@ void RadianceProxy::build(
         if (pixel_val < 0.0f || std::isnan(pixel_val) || std::isinf(pixel_val))
             pixel_val = 0.0f;
     }
+}
+
+void RadianceProxy::build_product(
+    const BSDFProxy&                    bsdf_proxy)
+{
+    ImageSampler<16> image_sampler(m_map);
+    m_image_importance_sampler.rebuild(image_sampler, nullptr);
 }
 
 float RadianceProxy::radiance(
@@ -640,40 +666,28 @@ float RadianceProxy::proxy_radiance(
     return m_map[pixel.y * map_width + pixel.x];
 }
 
-template<std::size_t N>
-class ImageSampler
-{
-  public:
-    ImageSampler(
-        const std::array<float, N * N>&       radiance_map)
-        : m_radiance_map(radiance_map)
-    {
-    }
+RadianceProxy::RadianceProxy()
+  : m_image_importance_sampler(16, 16)
+{}
 
-    void sample(const size_t x, const size_t y, float& payload, float& importance)
-    {
-        payload = importance = m_radiance_map[y * N + x];
-    }
-
-  private:
-    const std::array<float, N * N>&   m_radiance_map;
-};
+RadianceProxy::RadianceProxy(
+    const RadianceProxy&                    other)
+  : m_map(other.m_map)
+  , m_quadtree_strata(other.m_quadtree_strata)
+  , m_image_importance_sampler(16, 16)
+{}
 
 float RadianceProxy::sample(
     SamplingContext&                        sampling_context,
     foundation::Vector3f&                   direction) const
 {
-    ImageSampler<16> image_sampler(m_map);
-    ImageImportanceSampler<float, float> image_importance_sampler(16, 16);
-    image_importance_sampler.rebuild(image_sampler, nullptr);
-
     // Sample the importance map.
     sampling_context.split_in_place(2, 1);
     Vector2f s = sampling_context.next2<Vector2f>();
     Vector2u pixel;
     float payload;
     float pdf;
-    image_importance_sampler.sample(s, pixel.x, pixel.y, payload, pdf);
+    m_image_importance_sampler.sample(s, pixel.x, pixel.y, payload, pdf);
     assert(pdf >= 0.0f);
 
     Vector2f cylindrical_direction(pixel.x, pixel.y);
@@ -717,10 +731,7 @@ float RadianceProxy::pdf(
     // TODO: More precise mapping between directions and map pixels to avoid discrepancies in sampled
     // and evaluated pdf values. There also seems to be another source causing these discrepancies.
 
-    ImageSampler<16> image_sampler(m_map);
-    ImageImportanceSampler<float, float> image_importance_sampler(16, 16);
-    image_importance_sampler.rebuild(image_sampler, nullptr);
-    float pdf = image_importance_sampler.get_pdf(pixel.x, pixel.y);
+    float pdf = m_image_importance_sampler.get_pdf(pixel.x, pixel.y);
 
     const QuadTreeNode* sub_tree = (*m_quadtree_strata)[pixel.y * 16 + pixel.x];
 
