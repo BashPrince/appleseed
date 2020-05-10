@@ -32,6 +32,7 @@
 #include "renderer/global/globaltypes.h"
 #include "renderer/kernel/lighting/bsdfproxy.h"
 #include "renderer/kernel/lighting/gpt/gptparameters.h"
+#include "renderer/kernel/lighting/materialsamplers.h"
 #include "renderer/kernel/lighting/scatteringmode.h"
 #include "renderer/modeling/scene/scene.h"
 
@@ -135,9 +136,6 @@ class QuadTreeNode
         const float                         radiance_factor,
         const foundation::Vector2u          pixel_origin = foundation::Vector2u(0, 0),
         const size_t                        depth = 0) const;
-    
-    // Recursively integrate the pdf under this node.
-    float integrate_pdf(const float         scale) const;
 
 private:
     // Recursively sample a direction based on the directional radiance distribution.
@@ -174,7 +172,9 @@ class RadianceProxy
         const QuadTreeNode&                     quadtree_root,
         const float                             radiance_scale);
     void build_product(
-        const BSDFProxy&                        bsdf_proxy);
+        BSDFProxy&                              bsdf_proxy,
+        const foundation::Vector3f&             outgoing,
+        const foundation::Vector3f&             shading_normal);
     float radiance (const foundation::Vector3f& direction) const;
     float proxy_radiance (
         const foundation::Vector3f&             direction) const;
@@ -182,6 +182,7 @@ class RadianceProxy
         SamplingContext&                        sampling_context,
         foundation::Vector3f&                   direction) const;
     float pdf(const foundation::Vector3f&       direction) const;
+    bool is_built() const;
     
     alignas(32) std::array<float, 16 * 16>      m_map;
 
@@ -189,6 +190,9 @@ class RadianceProxy
     std::array<const QuadTreeNode*, 16 * 16>>   m_quadtree_strata;
     foundation::ImageImportanceSampler<float, float>
                                                 m_image_importance_sampler;
+    
+    bool                                        m_product_is_built;
+    bool                                        m_is_built;
 };
 
 // The D-tree interface.

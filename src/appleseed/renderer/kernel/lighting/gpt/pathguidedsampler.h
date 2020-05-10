@@ -1,6 +1,7 @@
 #pragma once
 
 // appleseed.renderer headers.
+#include "renderer/kernel/lighting/bsdfproxy.h"
 #include "renderer/kernel/lighting/materialsamplers.h"
 #include "renderer/kernel/lighting/sdtree.h"
 #include "renderer/modeling/bsdf/bsdfsample.h"
@@ -52,6 +53,7 @@ class PathGuidedSampler
   private:
     float guided_path_extension_pdf(
         const foundation::Vector3f&     incoming,
+        const foundation::Vector3f&     outgoing,
         const float&                    bsdf_pdf,
         float&                          d_tree_pdf,
         const bool                      d_tree_pdf_is_set) const;
@@ -63,7 +65,8 @@ class PathGuidedSampler
         const ScatteringMode::Mode      sampled_mode) const;
 
     DTree*                              m_d_tree;
-    RadianceProxy                       m_radiance_proxy;
+    mutable RadianceProxy               m_radiance_proxy;
+    mutable BSDFProxy                   m_bsdf_proxy;
     bool                                m_use_proxy;
     const float                         m_bsdf_sampling_fraction;
     const bool                          m_sd_tree_is_built;

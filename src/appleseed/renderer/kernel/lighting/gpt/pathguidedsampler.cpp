@@ -2,7 +2,6 @@
 #include "pathguidedsampler.h"
 
 // appleseed.renderer headers.
-#include "renderer/kernel/lighting/bsdfproxy.h"
 #include "renderer/kernel/lighting/tracer.h"
 #include "renderer/kernel/shading/directshadingcomponents.h"
 #include "renderer/kernel/shading/shadingcontext.h"
@@ -49,9 +48,7 @@ PathGuidedSampler::PathGuidedSampler(
     assert(m_d_tree);
     assert(m_bsdf_sampling_fraction >= 0.0f && m_bsdf_sampling_fraction <= 1.0f);
 
-    BSDFProxy bsdf_proxy;
-    m_use_proxy = m_bsdf.add_parameters_to_proxy(bsdf_proxy, bsdf_data, bsdf_sampling_modes);
-    m_radiance_proxy.build_product(bsdf_proxy);
+    m_use_proxy = m_radiance_proxy.is_built() && m_bsdf.add_parameters_to_proxy(m_bsdf_proxy, bsdf_data, bsdf_sampling_modes);
 }
 
 bool PathGuidedSampler::sample(
@@ -98,7 +95,7 @@ float PathGuidedSampler::evaluate(
         value);
 
     float d_tree_pdf;
-    return guided_path_extension_pdf(incoming, bsdf_pdf, d_tree_pdf, false);
+    return guided_path_extension_pdf(incoming, outgoing, bsdf_pdf, d_tree_pdf, false);
 }
 
 bool PathGuidedSampler::sample(
@@ -122,6 +119,7 @@ bool PathGuidedSampler::sample(
             
         wi_pdf = guided_path_extension_pdf(
             bsdf_sample.m_incoming.get_value(),
+            Vector3f(outgoing.get_value()),
             bsdf_sample.get_probability(),
             d_tree_pdf,
             true);
@@ -156,6 +154,7 @@ bool PathGuidedSampler::sample(
 
         wi_pdf = guided_path_extension_pdf(
             bsdf_sample.m_incoming.get_value(),
+            Vector3f(outgoing.get_value()),
             bsdf_sample.get_probability(),
             d_tree_pdf,
             false);
@@ -168,6 +167,7 @@ bool PathGuidedSampler::sample(
 
         if (m_use_proxy)
         {
+            m_radiance_proxy.build_product(m_bsdf_proxy, Vector3f(outgoing.get_value()), m_local_geometry.m_shading_basis.get_normal());
             d_tree_sample.pdf = m_radiance_proxy.sample(sampling_context, d_tree_sample.direction);
             d_tree_sample.scattering_mode = ScatteringMode::Diffuse;
         }
@@ -209,7 +209,12 @@ bool PathGuidedSampler::sample(
             bsdf_sample.set_to_scattering(scattering_mode, bsdf_pdf);
         }
 
-        wi_pdf = guided_path_extension_pdf(bsdf_sample.m_incoming.get_value(), bsdf_pdf, d_tree_pdf, true);
+        wi_pdf = guided_path_extension_pdf(
+            bsdf_sample.m_incoming.get_value(),
+            Vector3f(outgoing.get_value()),
+            bsdf_pdf,
+            d_tree_pdf,
+            true);
 
         return true;
     }
@@ -217,6 +222,7 @@ bool PathGuidedSampler::sample(
 
 float PathGuidedSampler::guided_path_extension_pdf(
     const foundation::Vector3f&     incoming,
+    const foundation::Vector3f&     outgoing,
     const float&                    bsdf_pdf,
     float&                          d_tree_pdf,
     const bool                      d_tree_pdf_is_set) const
@@ -230,7 +236,10 @@ float PathGuidedSampler::guided_path_extension_pdf(
     if (!d_tree_pdf_is_set)
     {
         if (m_use_proxy)
+        {
+            m_radiance_proxy.build_product(m_bsdf_proxy, outgoing, m_local_geometry.m_shading_basis.get_normal());
             d_tree_pdf = m_radiance_proxy.pdf(incoming);
+        }
         else
             d_tree_pdf = m_d_tree->pdf(incoming, enable_modes_before_sampling(m_bsdf_sampling_modes));
     }
