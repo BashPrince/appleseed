@@ -134,6 +134,8 @@ class QuadTreeNode
     void build_radiance_proxy(
         RadianceProxy&                      radiance_proxy,
         const float                         radiance_factor,
+        const size_t                        proxy_width,
+        const size_t                        end_level,
         const foundation::Vector2u          pixel_origin = foundation::Vector2u(0, 0),
         const size_t                        depth = 0) const;
 
@@ -183,11 +185,15 @@ class RadianceProxy
         foundation::Vector3f&                   direction) const;
     float pdf(const foundation::Vector3f&       direction) const;
     bool is_built() const;
-    
-    alignas(32) std::array<float, 16 * 16>      m_map;
+
+    static const size_t ProxyWidth = 16;
+
+    alignas(32) std::array<float, ProxyWidth * ProxyWidth> m_map;
 
     std::shared_ptr<
-    std::array<const QuadTreeNode*, 16 * 16>>   m_quadtree_strata;
+        std::array<const QuadTreeNode *, ProxyWidth * ProxyWidth>>
+                                                m_quadtree_strata;
+
     foundation::ImageImportanceSampler<float, float>
                                                 m_image_importance_sampler;
     

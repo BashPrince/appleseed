@@ -537,12 +537,14 @@ float QuadTreeNode::radiance(Vector2f& direction) const
 void QuadTreeNode::build_radiance_proxy(
     RadianceProxy&                      radiance_proxy,
     const float                         radiance_factor,
+    const size_t                        proxy_width,
+    const size_t                        end_level,
     const Vector2u                      origin,
-    const size_t                        level) const
+    const size_t                        depth) const
 {
-    if (level == 4 || m_is_leaf)
+    if (depth == end_level || m_is_leaf)
     {
-        const size_t level_diff = 4 - level;
+        const size_t level_diff = end_level - depth;
         size_t width = 1;
         Vector2u pixel_origin = origin;
 
@@ -559,10 +561,10 @@ void QuadTreeNode::build_radiance_proxy(
             for (size_t x = 0; x < width; ++x)
             {
                 const Vector2u pixel = pixel_origin + Vector2u(x, y);
-                const size_t pixel_index = pixel.y * 16 + pixel.x;
+                const size_t pixel_index = pixel.y * RadianceProxy::ProxyWidth + pixel.x;
 
                 assert (pixel_index >= 0);
-                assert (pixel_index < 16 * 16);
+                assert (pixel_index < RadianceProxy::ProxyWidth * RadianceProxy::ProxyWidth);
                 radiance_proxy.m_map[pixel_index] = radiance;
 
                 assert(radiance_proxy.m_quadtree_strata != nullptr);
@@ -576,23 +578,31 @@ void QuadTreeNode::build_radiance_proxy(
         m_upper_left_node->build_radiance_proxy(
             radiance_proxy,
             radiance_factor * 4.0f,
+            proxy_width,
+            end_level,
             sub_node_origin,
-            level + 1);
+            depth + 1);
         m_upper_right_node->build_radiance_proxy(
             radiance_proxy,
             radiance_factor * 4.0f,
+            proxy_width,
+            end_level,
             sub_node_origin + Vector2u(1, 0),
-            level + 1);
+            depth + 1);
         m_lower_left_node->build_radiance_proxy(
             radiance_proxy,
             radiance_factor * 4.0f,
+            proxy_width,
+            end_level,
             sub_node_origin + Vector2u(0, 1),
-            level + 1);
+            depth + 1);
         m_lower_right_node->build_radiance_proxy(
             radiance_proxy,
             radiance_factor * 4.0f,
+            proxy_width,
+            end_level,
             sub_node_origin + Vector2u(1, 1),
-            level + 1);
+            depth + 1);
     }
 }
 
@@ -627,10 +637,22 @@ void RadianceProxy::build(
     const QuadTreeNode&                 quadtree_root,
     const float                         radiance_scale)
 {
-    m_quadtree_strata = std::make_shared<std::array<const QuadTreeNode*, 16 * 16>>();
+    m_quadtree_strata = std::make_shared<std::array<const QuadTreeNode*, ProxyWidth * ProxyWidth>>();
+
+    size_t end_level = 0;
+    size_t map_width = ProxyWidth;
+
+    while (map_width > 1)
+    {
+        ++end_level;
+        map_width = map_width >> 1;
+    }
+
     quadtree_root.build_radiance_proxy(
         (*this),
-        radiance_scale);
+        radiance_scale,
+        ProxyWidth,
+        end_level);
     
     for (float& pixel_val : m_map)
     {
@@ -654,10 +676,10 @@ void RadianceProxy::build_product(
     bsdf_proxy.finish_parameterization(outgoing, shading_normal);
     m_product_is_built = true;
     
-    const float inv_width = 1.0f / 16.0f;
-    for (size_t y = 0; y < 16; ++y)
+    const float inv_width = 1.0f / ProxyWidth;
+    for (size_t y = 0; y < ProxyWidth; ++y)
     {
-        for (size_t x = 0; x < 16; ++x)
+        for (size_t x = 0; x < ProxyWidth; ++x)
         {
             const Vector2u pixel(x, y);
             const Vector2f cylindrical_direction(
@@ -666,12 +688,12 @@ void RadianceProxy::build_product(
 
             const Vector3f incoming = cylindrical_to_cartesian(cylindrical_direction);
 
-            const size_t index = pixel.y * 16 + pixel.x;
+            const size_t index = pixel.y * ProxyWidth + pixel.x;
             m_map[index] *= bsdf_proxy.evaluate(incoming);
         }
     }
 
-    ImageSampler<16> image_sampler(m_map);
+    ImageSampler<ProxyWidth> image_sampler(m_map);
     m_image_importance_sampler.rebuild(image_sampler, nullptr);
 }
 
@@ -690,7 +712,7 @@ float RadianceProxy::radiance(
 float RadianceProxy::proxy_radiance(
     const Vector3f&                 direction) const
 {
-    const size_t map_width = 16;
+    const size_t map_width = ProxyWidth;
     const Vector2f spherical_direction(cartesian_to_cylindrical(direction) * static_cast<float>(map_width));
     const Vector2u pixel(
         std::min(static_cast<size_t>(spherical_direction.x), map_width - 1),
@@ -700,7 +722,7 @@ float RadianceProxy::proxy_radiance(
 }
 
 RadianceProxy::RadianceProxy()
-  : m_image_importance_sampler(16, 16)
+  : m_image_importance_sampler(ProxyWidth, ProxyWidth)
   , m_product_is_built(false)
   , m_is_built(false)
 {}
@@ -709,7 +731,7 @@ RadianceProxy::RadianceProxy(
     const RadianceProxy&                    other)
   : m_map(other.m_map)
   , m_quadtree_strata(other.m_quadtree_strata)
-  , m_image_importance_sampler(16, 16)
+  , m_image_importance_sampler(ProxyWidth, ProxyWidth)
   , m_product_is_built(false)
   , m_is_built(other.m_is_built)
 {}
@@ -733,9 +755,9 @@ float RadianceProxy::sample(
     s = sampling_context.next2<Vector2f>();
 
     assert (m_quadtree_strata != nullptr);
-    assert (m_quadtree_strata->size() == 16 * 16);
-    assert (pixel.y * 16 + pixel.x < 16 * 16 && pixel.y * 16 + pixel.x >= 0);
-    const QuadTreeNode* sub_tree = (*m_quadtree_strata)[pixel.y * 16 + pixel.x];
+    assert (m_quadtree_strata->size() == ProxyWidth * ProxyWidth);
+    assert (pixel.y * ProxyWidth + pixel.x < ProxyWidth * ProxyWidth && pixel.y * ProxyWidth + pixel.x >= 0);
+    const QuadTreeNode* sub_tree = (*m_quadtree_strata)[pixel.y * ProxyWidth + pixel.x];
 
     if (sub_tree)
     {
@@ -748,8 +770,8 @@ float RadianceProxy::sample(
         cylindrical_direction += s;
     }
 
-    pdf *= 16.0f * 16.0f * RcpFourPi<float>();
-    cylindrical_direction *= 1.0f / 16.0f;
+    pdf *= ProxyWidth * ProxyWidth * RcpFourPi<float>();
+    cylindrical_direction *= 1.0f / ProxyWidth;
     // assert(cylindrical_direction.x >= 0.0f && cylindrical_direction.x < 1.0f);
     // assert(cylindrical_direction.y >= 0.0f && cylindrical_direction.y < 1.0f);
     cylindrical_direction.x = std::min(cylindrical_direction.x, 0.99999f);
@@ -765,7 +787,7 @@ float RadianceProxy::pdf(
 {
     assert(m_is_built);
 
-    const Vector2f cylindrical_direction = cartesian_to_cylindrical(direction) * 16.0f;
+    const Vector2f cylindrical_direction = cartesian_to_cylindrical(direction) * static_cast<float>(ProxyWidth);
     Vector2u pixel(
         truncate<size_t>(cylindrical_direction.x),
         truncate<size_t>(cylindrical_direction.y));
@@ -779,10 +801,10 @@ float RadianceProxy::pdf(
     float pdf = m_image_importance_sampler.get_pdf(pixel.x, pixel.y);
 
     assert (m_quadtree_strata != nullptr);
-    assert (m_quadtree_strata->size() == 16 * 16);
-    assert (pixel.y * 16 + pixel.x >= 0);
-    assert (pixel.y * 16 + pixel.x < 16 * 16);
-    const QuadTreeNode* sub_tree = (*m_quadtree_strata)[pixel.y * 16 + pixel.x];
+    assert (m_quadtree_strata->size() == ProxyWidth * ProxyWidth);
+    assert (pixel.y * ProxyWidth + pixel.x >= 0);
+    assert (pixel.y * ProxyWidth + pixel.x < ProxyWidth * ProxyWidth);
+    const QuadTreeNode* sub_tree = (*m_quadtree_strata)[pixel.y * ProxyWidth + pixel.x];
 
     if (sub_tree)
     {
@@ -790,7 +812,7 @@ float RadianceProxy::pdf(
         pdf *= sub_tree->pdf(sub_direction);
     }
 
-    pdf *= 16.0f * 16.0f * RcpFourPi<float>();
+    pdf *= ProxyWidth * ProxyWidth * RcpFourPi<float>();
     return pdf;
 }
 
