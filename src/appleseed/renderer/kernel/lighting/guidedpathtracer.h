@@ -717,7 +717,7 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
     GPTVertexPath&                      guided_path)
 {
     foundation::Vector3f voxel_size;
-    DTree *d_tree = m_sd_tree->get_d_tree(foundation::Vector3f(vertex.get_point()), voxel_size);
+    DTree* d_tree = m_sd_tree->get_d_tree(foundation::Vector3f(vertex.get_point()), voxel_size);
     const float sampling_fraction = d_tree->bsdf_sampling_fraction();
     const bool enable_path_guiding = m_guided_bounces < m_max_guided_bounces;
     
@@ -728,13 +728,12 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
     if (vertex.m_scattering_modes == ScatteringMode::None)
         return false;
     
-    float wi_pdf, d_tree_pdf;
+    float wi_pdf, d_tree_pdf, product_pdf;
 
     PathGuidedSampler sampler(
         enable_path_guiding,
         m_guided_bounce_mode,
         d_tree,
-        sampling_fraction,
         *vertex.m_bsdf,
         vertex.m_bsdf_data,
         vertex.m_scattering_modes,
@@ -746,7 +745,8 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
         sample,
         vertex.m_outgoing,
         wi_pdf,
-        d_tree_pdf
+        d_tree_pdf,
+        product_pdf
     );
 
     
@@ -836,7 +836,9 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
                 wi_pdf,
                 sample.get_probability(),
                 d_tree_pdf,
-                is_delta
+                product_pdf,
+                is_delta,
+                sampler.guiding_method()
             }
         );
     }

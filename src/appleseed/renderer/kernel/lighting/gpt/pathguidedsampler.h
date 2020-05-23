@@ -23,7 +23,6 @@ class PathGuidedSampler
         const bool                      enable_path_guiding,
         const GuidedBounceMode          guided_bounce_mode,
         DTree*                          d_tree,
-        const float                     bsdf_sampling_fraction,
         const BSDF&                     bsdf,
         const void*                     bsdf_data,
         const int                       bsdf_sampling_modes,
@@ -42,21 +41,26 @@ class PathGuidedSampler
         BSDFSample&                     bsdf_sample,
         const foundation::Dual3d&       outgoing,
         float&                          wi_pdf,
-        float&                          d_tree_pdf) const;
+        float&                          d_tree_pdf,
+        float&                          product_pdf) const;
 
     float evaluate(
         const foundation::Vector3f&     outgoing,
         const foundation::Vector3f&     incoming,
         const int                       light_sampling_modes,
         DirectShadingComponents&        value) const override;
+    
+    GuidingMethod guiding_method() const;
 
   private:
     float guided_path_extension_pdf(
         const foundation::Vector3f&     incoming,
         const foundation::Vector3f&     outgoing,
-        const float&                    bsdf_pdf,
-        float&                          d_tree_pdf,
-        const bool                      d_tree_pdf_is_set) const;
+        const float                     bsdf_pdf,
+        const float                     d_tree_pdf,
+        const float                     product_pdf,
+        const float                     bsdf_sampling_fraction,
+        const float                     product_sampling_fraction) const;
 
     const int enable_modes_before_sampling(
         const int                       sample_modes) const;
@@ -67,8 +71,7 @@ class PathGuidedSampler
     DTree*                              m_d_tree;
     mutable RadianceProxy               m_radiance_proxy;
     mutable BSDFProxy                   m_bsdf_proxy;
-    bool                                m_use_proxy;
-    const float                         m_bsdf_sampling_fraction;
+    GuidingMethod                       m_guiding_method;
     const bool                          m_sd_tree_is_built;
     const bool                          m_enable_path_guiding;
     const GuidedBounceMode              m_guided_bounce_mode;

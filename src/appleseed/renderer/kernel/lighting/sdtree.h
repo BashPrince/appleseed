@@ -70,6 +70,12 @@ struct DTreeSample
     ScatteringMode::Mode                scattering_mode;
 };
 
+enum class GuidingMethod
+{
+    PathGuiding,
+    ProductGuiding
+};
+
 // The node type for the D-Tree.
 
 class QuadTreeNode
@@ -243,6 +249,7 @@ class DTree
     float sample_weight() const;
     float mean() const;
     float bsdf_sampling_fraction() const;
+    foundation::Vector2f bsdf_sampling_fraction_product() const;
     ScatteringMode::Mode get_scattering_mode() const;
 
     void write_to_disk(
@@ -256,6 +263,8 @@ class DTree
   private:
     void acquire_optimization_spin_lock();
     void release_optimization_spin_lock();
+    void acquire_optimization_spin_lock_product();
+    void release_optimization_spin_lock_product();
 
     // Perform an bsdf sampling fraction optimization step.
     void optimization_step(
@@ -263,6 +272,12 @@ class DTree
 
     void adam_step(
         const float                         gradient);
+
+    void optimization_step_product(
+        const DTreeRecord&                  d_tree_record);
+
+    void adam_step_product(
+        const foundation::Vector2f          gradient);
 
     QuadTreeNode                        m_root_node;
     std::atomic<float>                  m_current_iter_sample_weight;
@@ -276,6 +291,12 @@ class DTree
     float                               m_first_moment;
     float                               m_second_moment;
     float                               m_theta;
+
+    std::atomic_flag                    m_atomic_flag_product;
+    size_t                              m_optimization_step_count_product;
+    foundation::Vector2f                m_first_moment_product;
+    foundation::Vector2f                m_second_moment_product;
+    foundation::Vector2f                m_theta_product;
 
     const GPTParameters&                m_parameters;
 
@@ -425,7 +446,9 @@ class GPTVertex
     float                               m_wi_pdf;
     float                               m_bsdf_pdf;
     float                               m_d_tree_pdf;
+    float                               m_product_pdf;
     bool                                m_is_delta;
+    GuidingMethod                       m_guiding_method;
 };
 
 // A trail of guided path tracing vertices.

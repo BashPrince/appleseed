@@ -823,9 +823,11 @@ struct DTreeRecord
     float                       wi_pdf;
     float                       bsdf_pdf;
     float                       d_tree_pdf;
+    float                       product_pdf;
     float                       sample_weight;
     float                       product;
     bool                        is_delta;
+    GuidingMethod               guiding_method;
 };
 
 // DTree implementation.
@@ -840,10 +842,15 @@ DTree::DTree(
     , m_first_moment(0.0f)
     , m_second_moment(0.0f)
     , m_theta(0.0f)
+    , m_optimization_step_count_product(0)
+    , m_first_moment_product(0.0f)
+    , m_second_moment_product(0.0f)
+    , m_theta_product(0.0f)
     , m_is_built(false)
     , m_scattering_mode(ScatteringMode::Diffuse)
 {
     m_atomic_flag.clear(std::memory_order_release);
+    m_atomic_flag_product.clear(std::memory_order_release);
 }
 
 DTree::DTree(
@@ -856,17 +863,27 @@ DTree::DTree(
     , m_first_moment(other.m_first_moment)
     , m_second_moment(other.m_second_moment)
     , m_theta(other.m_theta)
+    , m_optimization_step_count_product(other.m_optimization_step_count_product)
+    , m_first_moment_product(other.m_first_moment_product)
+    , m_second_moment_product(other.m_second_moment_product)
+    , m_theta_product(other.m_theta_product)
     , m_is_built(other.m_is_built)
     , m_scattering_mode(other.m_scattering_mode)
 {
     m_atomic_flag.clear(std::memory_order_release);
+    m_atomic_flag_product.clear(std::memory_order_release);
 }
 
 void DTree::record(
     const DTreeRecord&                  d_tree_record)
 {
     if(m_parameters.m_bsdf_sampling_fraction_mode == BSDFSamplingFractionMode::Learn && m_is_built && d_tree_record.product > 0.0f)
-        optimization_step(d_tree_record); // also optimizes delta records
+    {
+        if (d_tree_record.guiding_method == GuidingMethod::PathGuiding)
+            optimization_step(d_tree_record);
+        else
+            optimization_step_product(d_tree_record);
+    }
         
     if(d_tree_record.is_delta || d_tree_record.wi_pdf <= 0.0f)
         return;
@@ -997,6 +1014,10 @@ void DTree::restructure(
         m_first_moment = 0.0f;
         m_second_moment = 0.0f;
         m_theta = 0.0f;
+        m_optimization_step_count_product = 0;
+        m_first_moment_product = Vector2f(0.0f);
+        m_second_moment_product = Vector2f(0.0f);
+        m_theta_product = Vector2f(0.0f);
         m_mip_maps.clear();
         m_mip_maps.push_back(std::vector<float>{0.0f});
         return;
@@ -1071,6 +1092,15 @@ float DTree::bsdf_sampling_fraction() const
         return m_parameters.m_fixed_bsdf_sampling_fraction;
 }
 
+Vector2f DTree::bsdf_sampling_fraction_product() const
+{
+    if(m_parameters.m_bsdf_sampling_fraction_mode == BSDFSamplingFractionMode::Learn)
+        return Vector2f(
+            logistic(m_theta_product.x), logistic(m_theta_product.y));
+    else
+        return Vector2f(0.33333f, 0.5f); // TODO: Meaningful parameters
+}
+
 void DTree::acquire_optimization_spin_lock()
 {
     while(m_atomic_flag.test_and_set(std::memory_order_acquire))
@@ -1080,6 +1110,17 @@ void DTree::acquire_optimization_spin_lock()
 void DTree::release_optimization_spin_lock()
 {
     m_atomic_flag.clear(std::memory_order_release);
+}
+
+void DTree::acquire_optimization_spin_lock_product()
+{
+    while(m_atomic_flag_product.test_and_set(std::memory_order_acquire))
+        ;
+}
+
+void DTree::release_optimization_spin_lock_product()
+{
+    m_atomic_flag_product.clear(std::memory_order_release);
 }
 
 // BSDF sampling fraction optimization procedure.
@@ -1122,6 +1163,48 @@ void DTree::adam_step(
     m_theta -= debiased_learning_rate * m_first_moment / (std::sqrt(m_second_moment) + OptimizationEpsilon);
 
     m_theta = clamp(m_theta, -20.0f, 20.0f);
+}
+
+void DTree::optimization_step_product(
+    const DTreeRecord&                  d_tree_record)
+{
+    acquire_optimization_spin_lock_product();
+
+    const Vector2f sampling_fraction = bsdf_sampling_fraction_product();
+    const float combined_pdf = sampling_fraction.x * d_tree_record.bsdf_pdf +
+                               (1.0f - sampling_fraction.x) * (sampling_fraction.y * d_tree_record.d_tree_pdf +
+                               (1.0f - sampling_fraction.y) * d_tree_record.product_pdf);
+
+    Vector2f d_sampling_fraction(-d_tree_record.product / (d_tree_record.wi_pdf * combined_pdf)); // common factor
+
+    d_sampling_fraction.x *= d_tree_record.bsdf_pdf - (sampling_fraction.y * d_tree_record.d_tree_pdf +
+                               (1.0f - sampling_fraction.y) * d_tree_record.product_pdf);
+    d_sampling_fraction.y *= (1.0f - sampling_fraction.x) * (d_tree_record.product_pdf - d_tree_record.d_tree_pdf);
+
+    Vector2f d_theta = d_sampling_fraction * sampling_fraction * (Vector2f(1.0f) - sampling_fraction);
+
+    const Vector2f reg_gradient = m_theta_product * Regularization;
+    const Vector2f gradient = (d_theta + reg_gradient) * d_tree_record.sample_weight;
+
+    adam_step_product(gradient);
+
+    release_optimization_spin_lock_product();
+}
+
+void DTree::adam_step_product(
+    const Vector2f                      gradient)
+{
+    ++m_optimization_step_count_product;
+    const float debiased_learning_rate = m_parameters.m_learning_rate *
+                                         std::sqrt(1.0f - std::pow(Beta2, static_cast<float>(m_optimization_step_count_product))) /
+                                         (1.0f - std::pow(Beta1, static_cast<float>(m_optimization_step_count_product)));
+
+    m_first_moment_product = Beta1 * m_first_moment_product + (1.0f - Beta1) * gradient;
+    m_second_moment_product = Beta2 * m_second_moment_product + (1.0f - Beta2) * gradient * gradient;
+    const Vector2f sqrt_second_moment(std::sqrt(m_second_moment_product.x), std::sqrt(m_second_moment_product.y));
+    m_theta_product -= debiased_learning_rate * m_first_moment_product / (sqrt_second_moment + Vector2f(OptimizationEpsilon));
+
+    m_theta_product = clamp(m_theta_product, -20.0f, 20.0f);
 }
 
 void DTree::write_to_disk(
@@ -1295,9 +1378,11 @@ void STreeNode::record(
                 d_tree_record.wi_pdf,
                 d_tree_record.bsdf_pdf,
                 d_tree_record.d_tree_pdf,
+                d_tree_record.product_pdf,
                 d_tree_record.sample_weight * intersection_volume,
                 d_tree_record.product,
-                d_tree_record.is_delta});
+                d_tree_record.is_delta,
+                d_tree_record.guiding_method});
     }
     else
     {
@@ -1719,9 +1804,11 @@ void GPTVertex::record_to_tree(
         m_wi_pdf,
         m_bsdf_pdf,
         m_d_tree_pdf,
+        m_product_pdf,
         1.0f,
         average_value(product),
-        m_is_delta};
+        m_is_delta,
+        m_guiding_method};
 
     sd_tree.record(m_d_tree, m_point, m_d_tree_node_size, d_tree_record, sampling_context);
 }

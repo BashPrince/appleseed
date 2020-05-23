@@ -707,7 +707,6 @@ namespace
                     enable_path_guiding,
                     m_params.m_guided_bounce_mode,
                     m_sd_tree->get_d_tree(foundation::Vector3f(shading_point.get_point())),
-                    bsdf_sampling_fraction,
                     bsdf,
                     bsdf_data,
                     scattering_modes,       // bsdf_sampling_modes (unused)
@@ -762,7 +761,6 @@ namespace
                     enable_path_guiding,
                     m_params.m_guided_bounce_mode,
                     m_sd_tree->get_d_tree(foundation::Vector3f(shading_point.get_point())),
-                    bsdf_sampling_fraction,
                     bsdf,
                     bsdf_data,
                     scattering_modes, // bsdf_sampling_modes (unused)
