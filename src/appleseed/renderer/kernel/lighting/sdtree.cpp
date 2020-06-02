@@ -827,7 +827,7 @@ struct DTreeRecord
     float                       sample_weight;
     float                       product;
     bool                        is_delta;
-    GuidingMethod               guiding_method;
+    GuidingMode                 guiding_mode;
 };
 
 // DTree implementation.
@@ -879,10 +879,10 @@ void DTree::record(
 {
     if(m_parameters.m_bsdf_sampling_fraction_mode == BSDFSamplingFractionMode::Learn && m_is_built && d_tree_record.product > 0.0f)
     {
-        if (d_tree_record.guiding_method == GuidingMethod::PathGuiding)
-            optimization_step(d_tree_record);
-        else
+        if (d_tree_record.guiding_mode == GuidingMode::Combined)
             optimization_step_product(d_tree_record);
+        else
+            optimization_step(d_tree_record);
     }
         
     if(d_tree_record.is_delta || d_tree_record.wi_pdf <= 0.0f)
@@ -1098,7 +1098,9 @@ Vector2f DTree::bsdf_sampling_fraction_product() const
         return Vector2f(
             logistic(m_theta_product.x), logistic(m_theta_product.y));
     else
-        return Vector2f(0.33333f, 0.5f); // TODO: Meaningful parameters
+        return Vector2f(
+            m_parameters.m_fixed_bsdf_sampling_fraction,
+            m_parameters.m_fixed_product_sampling_fraction);
 }
 
 void DTree::acquire_optimization_spin_lock()
@@ -1382,7 +1384,7 @@ void STreeNode::record(
                 d_tree_record.sample_weight * intersection_volume,
                 d_tree_record.product,
                 d_tree_record.is_delta,
-                d_tree_record.guiding_method});
+                d_tree_record.guiding_mode});
     }
     else
     {
@@ -1808,7 +1810,7 @@ void GPTVertex::record_to_tree(
         1.0f,
         average_value(product),
         m_is_delta,
-        m_guiding_method};
+        m_guiding_mode};
 
     sd_tree.record(m_d_tree, m_point, m_d_tree_node_size, d_tree_record, sampling_context);
 }

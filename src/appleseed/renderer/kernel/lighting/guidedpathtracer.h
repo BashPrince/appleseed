@@ -108,6 +108,7 @@ class GuidedPathTracer
         STree*                          sd_tree,
         PathVisitor&                    path_visitor,
         VolumeVisitor&                  volume_visitor,
+        const GuidingMode               guiding_mode,
         const BSDFSamplingFractionMode  bsdf_sampling_fraction_mode,
         const GuidedBounceMode          guided_bounce_mode,
         const size_t                    rr_min_path_length,
@@ -140,6 +141,7 @@ class GuidedPathTracer
     STree*                          m_sd_tree;
     PathVisitor&                    m_path_visitor;
     VolumeVisitor&                  m_volume_visitor;
+    const GuidingMode               m_guiding_mode;
     const BSDFSamplingFractionMode  m_bsdf_sampling_fraction_mode;
     const GuidedBounceMode          m_guided_bounce_mode;
     const size_t                    m_rr_min_path_length;
@@ -201,6 +203,7 @@ inline GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::GuidedPathTracer(
     STree*                              sd_tree,
     PathVisitor&                        path_visitor,
     VolumeVisitor&                      volume_visitor,
+    const GuidingMode                   guiding_mode,
     const BSDFSamplingFractionMode      bsdf_sampling_fraction_mode,
     const GuidedBounceMode              guided_bounce_mode,
     const size_t                        rr_min_path_length,
@@ -216,6 +219,7 @@ inline GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::GuidedPathTracer(
   : m_sd_tree(sd_tree)
   , m_path_visitor(path_visitor)
   , m_volume_visitor(volume_visitor)
+  , m_guiding_mode(guiding_mode)
   , m_bsdf_sampling_fraction_mode(bsdf_sampling_fraction_mode)
   , m_guided_bounce_mode(guided_bounce_mode)
   , m_rr_min_path_length(rr_min_path_length)
@@ -718,11 +722,12 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
 {
     foundation::Vector3f voxel_size;
     DTree* d_tree = m_sd_tree->get_d_tree(foundation::Vector3f(vertex.get_point()), voxel_size);
-    const float sampling_fraction = d_tree->bsdf_sampling_fraction();
+    const float bsdf_sampling_fraction = d_tree->bsdf_sampling_fraction();
+    const foundation::Vector2f product_sampling_fractions = d_tree->bsdf_sampling_fraction_product();
     const bool enable_path_guiding = m_guided_bounces < m_max_guided_bounces;
     
     // Let the path visitor handle the scattering event.
-    m_path_visitor.on_scatter(vertex, guided_path, sampling_fraction, enable_path_guiding);
+    m_path_visitor.on_scatter(vertex, guided_path, bsdf_sampling_fraction, product_sampling_fractions, enable_path_guiding);
 
     // Terminate the path if all scattering modes are disabled.
     if (vertex.m_scattering_modes == ScatteringMode::None)
@@ -731,6 +736,7 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
     float wi_pdf, d_tree_pdf, product_pdf;
 
     PathGuidedSampler sampler(
+        m_guiding_mode,
         enable_path_guiding,
         m_guided_bounce_mode,
         d_tree,
@@ -738,7 +744,9 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
         vertex.m_bsdf_data,
         vertex.m_scattering_modes,
         *vertex.m_shading_point,
-        m_sd_tree->is_built());
+        m_sd_tree->is_built(),
+        bsdf_sampling_fraction,
+        product_sampling_fractions);
 
     bool is_path_guided = sampler.sample(
         sampling_context,
@@ -838,7 +846,7 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
                 d_tree_pdf,
                 product_pdf,
                 is_delta,
-                sampler.guiding_method()
+                sampler.guiding_mode()
             }
         );
     }
