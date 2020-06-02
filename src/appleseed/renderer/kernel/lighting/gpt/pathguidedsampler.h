@@ -28,9 +28,7 @@ class PathGuidedSampler
         const void*                     bsdf_data,
         const int                       bsdf_sampling_modes,
         const ShadingPoint&             shading_point,
-        const bool                      sd_tree_is_built,
-        const float                     bsdf_sampling_fraction,
-        const foundation::Vector2f&     product_sampling_fractions);
+        const bool                      sd_tree_is_built);
 
     bool sample(
         SamplingContext&                sampling_context,

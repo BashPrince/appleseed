@@ -722,18 +722,7 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
 {
     foundation::Vector3f voxel_size;
     DTree* d_tree = m_sd_tree->get_d_tree(foundation::Vector3f(vertex.get_point()), voxel_size);
-    const float bsdf_sampling_fraction = d_tree->bsdf_sampling_fraction();
-    const foundation::Vector2f product_sampling_fractions = d_tree->bsdf_sampling_fraction_product();
     const bool enable_path_guiding = m_guided_bounces < m_max_guided_bounces;
-    
-    // Let the path visitor handle the scattering event.
-    m_path_visitor.on_scatter(vertex, guided_path, bsdf_sampling_fraction, product_sampling_fractions, enable_path_guiding);
-
-    // Terminate the path if all scattering modes are disabled.
-    if (vertex.m_scattering_modes == ScatteringMode::None)
-        return false;
-    
-    float wi_pdf, d_tree_pdf, product_pdf;
 
     PathGuidedSampler sampler(
         m_guiding_mode,
@@ -744,9 +733,16 @@ bool GuidedPathTracer<PathVisitor, VolumeVisitor, Adjoint>::process_bounce(
         vertex.m_bsdf_data,
         vertex.m_scattering_modes,
         *vertex.m_shading_point,
-        m_sd_tree->is_built(),
-        bsdf_sampling_fraction,
-        product_sampling_fractions);
+        m_sd_tree->is_built());
+
+    // Let the path visitor handle the scattering event.
+    m_path_visitor.on_scatter(vertex, guided_path, sampler);
+
+    // Terminate the path if all scattering modes are disabled.
+    if (vertex.m_scattering_modes == ScatteringMode::None)
+        return false;
+    
+    float wi_pdf, d_tree_pdf, product_pdf;
 
     bool is_path_guided = sampler.sample(
         sampling_context,

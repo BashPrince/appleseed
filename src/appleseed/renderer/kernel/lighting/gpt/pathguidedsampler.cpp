@@ -31,9 +31,7 @@ PathGuidedSampler::PathGuidedSampler(
     const void*                     bsdf_data,
     const int                       bsdf_sampling_modes,
     const ShadingPoint&             shading_point,
-    const bool                      sd_tree_is_built,
-    const float                     bsdf_sampling_fraction,
-    const Vector2f&                 product_sampling_fractions)
+    const bool                      sd_tree_is_built)
   : BSDFSampler(
       bsdf,
       bsdf_data,
@@ -46,8 +44,8 @@ PathGuidedSampler::PathGuidedSampler(
   , m_guided_bounce_mode(guided_bounce_mode)
   , m_radiance_proxy(d_tree->get_radiance_proxy())
   , m_use_product_guiding(false)
-  , m_bsdf_sampling_fraction(bsdf_sampling_fraction)
-  , m_product_sampling_fractions(product_sampling_fractions)
+  , m_bsdf_sampling_fraction(d_tree->bsdf_sampling_fraction())
+  , m_product_sampling_fractions(d_tree->bsdf_sampling_fraction_product())
 {
     assert(m_d_tree);
 
