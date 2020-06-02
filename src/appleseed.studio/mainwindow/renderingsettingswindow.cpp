@@ -1396,8 +1396,10 @@ namespace
             create_direct_link("guiding.samples_per_pass",                          "gpt.samples_per_pass");
             create_direct_link("guiding.spatial_filter",                            "gpt.spatial_filter");
             create_direct_link("guiding.directional_filter",                        "gpt.directional_filter");
+            create_direct_link("guiding.guiding_mode",                              "gpt.guiding_mode");
             create_direct_link("guiding.bsdf_sampling_fraction",                    "gpt.bsdf_sampling_fraction");
             create_direct_link("guiding.fixed_bsdf_sampling_fraction_value",        "gpt.fixed_bsdf_sampling_fraction_value");
+            create_direct_link("guiding.fixed_product_sampling_fraction_value",     "gpt.fixed_product_sampling_fraction_value");
             create_direct_link("guiding.learning_rate",                             "gpt.learning_rate");
             create_direct_link("guiding.iteration_progression",                     "gpt.iteration_progression");
             create_direct_link("guiding.guided_bounce_mode",                        "gpt.guided_bounce_mode");
@@ -1407,6 +1409,7 @@ namespace
             load_directly_linked_values(config);
 
             slot_changed_bsdf_sampling_fraction_mode(m_sampling_fraction_combobox->currentIndex());
+            slot_changed_guiding_mode(m_guiding_mode_combobox->currentIndex());
             slot_changed_save_iterations_mode(m_save_iterations_combobox->currentIndex());
 
             load_global_max_bounce_settings(config, "gpt", "gpt.max_bounces", 8);
@@ -1438,7 +1441,9 @@ namespace
 
       private:
         QComboBox*                  m_sampling_fraction_combobox;
+        QComboBox*                  m_guiding_mode_combobox;
         QDoubleSpinBox*             m_bsdf_sampling_fraction_spinbox;
+        QDoubleSpinBox*             m_product_sampling_fraction_spinbox;
         QDoubleSpinBox*             m_learning_rate_spinbox;
         QComboBox*                  m_save_iterations_combobox;
         QLineEdit*                  m_path_line_edit;
@@ -1613,6 +1618,14 @@ namespace
             directional_filter_combobox->addItem("Nearest", "nearest");
 
             sublayout->addRow("Directional Filter:", directional_filter_combobox);
+            
+            m_guiding_mode_combobox = create_combobox("guiding.guiding_mode");
+            m_guiding_mode_combobox->setToolTip(m_params_metadata.get_path("gpt.guiding_mode.help"));
+            m_guiding_mode_combobox->addItem("Path Guiding", "pathguiding");
+            m_guiding_mode_combobox->addItem("Product Guiding", "productguiding");
+            m_guiding_mode_combobox->addItem("Combined", "combined");
+
+            sublayout->addRow("Guiding Mode:", m_guiding_mode_combobox);
 
             m_sampling_fraction_combobox = create_combobox("guiding.bsdf_sampling_fraction");
             m_sampling_fraction_combobox->setToolTip(m_params_metadata.get_path("gpt.bsdf_sampling_fraction.help"));
@@ -1629,6 +1642,14 @@ namespace
             set_widget_width_for_text(m_bsdf_sampling_fraction_spinbox, "0.50", SpinBoxMargin, SpinBoxMinWidth);
             sublayout->addRow("Fixed BSDF Sampling Fraction:", m_bsdf_sampling_fraction_spinbox);
 
+            m_product_sampling_fraction_spinbox = 
+                create_double_input("guiding.fixed_product_sampling_fraction_value", 0, 1, 2, 0.02);
+            m_product_sampling_fraction_spinbox->setToolTip(
+                m_params_metadata.get_path("gpt.fixed_product_sampling_fraction_value.help"));
+            //bsdf_sampling_fraction->setValue(0.5);
+            set_widget_width_for_text(m_product_sampling_fraction_spinbox, "0.50", SpinBoxMargin, SpinBoxMinWidth);
+            sublayout->addRow("Fixed Product Sampling Fraction:", m_product_sampling_fraction_spinbox);
+
             m_learning_rate_spinbox = 
                 create_double_input("guiding.learning_rate", 0.01, 1.0, 2, 0.01);
             m_learning_rate_spinbox->setToolTip(
@@ -1640,6 +1661,10 @@ namespace
             connect(
                 m_sampling_fraction_combobox, SIGNAL(currentIndexChanged(int)),
                 SLOT(slot_changed_bsdf_sampling_fraction_mode(const int)));
+
+            connect(
+                m_guiding_mode_combobox, SIGNAL(currentIndexChanged(int)),
+                SLOT(slot_changed_guiding_mode(const int)));
 
             QComboBox* iteration_combobox = create_combobox("guiding.iteration_progression");
             iteration_combobox->setToolTip(m_params_metadata.get_path("gpt.iteration_progression.help"));
@@ -1701,9 +1726,20 @@ namespace
         void slot_changed_bsdf_sampling_fraction_mode(const int index)
         {
             const QString bsdf_sampling_mode = m_sampling_fraction_combobox->itemData(index).value<QString>();
+            const QString guiding_mode = m_guiding_mode_combobox->itemData(m_guiding_mode_combobox->currentIndex()).value<QString>();
 
             m_bsdf_sampling_fraction_spinbox->setEnabled(bsdf_sampling_mode == "fixed");
             m_learning_rate_spinbox->setEnabled(bsdf_sampling_mode == "learn");
+            m_product_sampling_fraction_spinbox->setEnabled(bsdf_sampling_mode == "fixed" && guiding_mode == "combined");
+        }
+
+        void slot_changed_guiding_mode(const int index)
+        {
+            const QString guiding_mode = m_guiding_mode_combobox->itemData(index).value<QString>();
+            const QString bsdf_sampling_mode = m_sampling_fraction_combobox->itemData(
+                m_sampling_fraction_combobox->currentIndex()).value<QString>();
+
+            m_product_sampling_fraction_spinbox->setEnabled(bsdf_sampling_mode == "fixed" && guiding_mode == "combined");
         }
 
         void slot_changed_save_iterations_mode(const int index)

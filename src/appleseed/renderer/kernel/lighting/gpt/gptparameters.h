@@ -68,6 +68,13 @@ enum class BSDFSamplingFractionMode
 	Fixed
 };
 
+enum class GuidingMode
+{
+	PathGuiding,
+	ProductGuiding,
+	Combined
+};
+
 enum class GuidedBounceMode
 {
 	Learn,
@@ -95,10 +102,12 @@ struct GPTParameters
 	const SpatialFilter               m_spatial_filter;
 	const DirectionalFilter           m_directional_filter;
 	const BSDFSamplingFractionMode    m_bsdf_sampling_fraction_mode;
+	const GuidingMode			  	  m_guiding_mode;
 	const GuidedBounceMode			  m_guided_bounce_mode;
 	const SaveMode					  m_save_mode;
 	const std::string				  m_save_path;
 	const float                       m_fixed_bsdf_sampling_fraction;
+	const float                       m_fixed_product_sampling_fraction;
 	const float                       m_learning_rate;
 
 

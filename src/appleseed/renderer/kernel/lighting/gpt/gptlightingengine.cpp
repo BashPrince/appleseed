@@ -189,6 +189,7 @@ namespace
                 m_sd_tree,
                 path_visitor,
                 volume_visitor,
+                m_params.m_guiding_mode,
                 m_params.m_bsdf_sampling_fraction_mode,
                 m_params.m_guided_bounce_mode,
                 m_params.m_rr_min_path_length,
@@ -415,6 +416,7 @@ namespace
                 PathVertex&                 vertex,
                 GPTVertexPath&              guided_path,
                 const float                 bsdf_sampling_fraction,
+                const Vector2f&             product_sampling_fraction,
                 const bool                  enable_path_guiding)
             {
                 // When caustics are disabled, disable glossy and specular components after a diffuse or volume bounce.
@@ -562,6 +564,7 @@ namespace
                 PathVertex&                 vertex,
                 GPTVertexPath&              guided_path,
                 const float                 bsdf_sampling_fraction,
+                const Vector2f&             product_sampling_fraction,
                 const bool                  enable_path_guiding)
             {
                 assert(vertex.m_scattering_modes != ScatteringMode::None);
@@ -618,6 +621,7 @@ namespace
                             vertex_radiance,
                             m_light_path_stream,
                             bsdf_sampling_fraction,
+                            product_sampling_fraction,
                             enable_path_guiding);
                     }
                 }
@@ -636,6 +640,7 @@ namespace
                             vertex_radiance,
                             m_light_path_stream,
                             bsdf_sampling_fraction,
+                            product_sampling_fraction,
                             enable_path_guiding);
                     }
                 }
@@ -691,6 +696,7 @@ namespace
                 DirectShadingComponents&    vertex_radiance,
                 LightPathStream*            light_path_stream,
                 const float                 bsdf_sampling_fraction,
+                const Vector2f&             product_sampling_fraction,
                 const bool                  enable_path_guiding)
             {
                 DirectShadingComponents dl_radiance;
@@ -704,6 +710,7 @@ namespace
                     return;
 
                 const PathGuidedSampler path_guided_sampler(
+                    m_params.m_guiding_mode,
                     enable_path_guiding,
                     m_params.m_guided_bounce_mode,
                     m_sd_tree->get_d_tree(foundation::Vector3f(shading_point.get_point())),
@@ -711,7 +718,9 @@ namespace
                     bsdf_data,
                     scattering_modes,       // bsdf_sampling_modes (unused)
                     shading_point,
-                    m_sd_tree->is_built());
+                    m_sd_tree->is_built(),
+                    bsdf_sampling_fraction,
+                    product_sampling_fraction);
 
                 // This path will be extended via BSDF sampling: sample the lights only.
                 const DirectLightingIntegrator integrator(
@@ -748,6 +757,7 @@ namespace
                 DirectShadingComponents&    vertex_radiance,
                 LightPathStream*            light_path_stream,
                 const float                 bsdf_sampling_fraction,
+                const Vector2f&             product_sampling_fraction,
                 const bool                  enable_path_guiding)
             {
                 DirectShadingComponents ibl_radiance;
@@ -758,6 +768,7 @@ namespace
                         m_params.m_ibl_env_sample_count);
 
                 const PathGuidedSampler path_guided_sampler(
+                    m_params.m_guiding_mode,
                     enable_path_guiding,
                     m_params.m_guided_bounce_mode,
                     m_sd_tree->get_d_tree(foundation::Vector3f(shading_point.get_point())),
@@ -765,7 +776,9 @@ namespace
                     bsdf_data,
                     scattering_modes, // bsdf_sampling_modes (unused)
                     shading_point,
-                    m_sd_tree->is_built());
+                    m_sd_tree->is_built(),
+                    bsdf_sampling_fraction,
+                    product_sampling_fraction);
 
                 // This path will be extended via BSDF sampling: sample the environment only.
                 compute_ibl_environment_sampling(
@@ -1057,6 +1070,33 @@ Dictionary GPTLightingEngineFactory::get_params_metadata()
                             .insert("help", "Record radiance to the nearest D-tree leaf node only"))));
 
     metadata.dictionaries().insert(
+        "guiding_mode",
+        Dictionary()
+            .insert("type", "enum")
+            .insert("values", "pathguiding|productguiding|combined")
+            .insert("default", "combined")
+            .insert("label", "Guiding Mode")
+            .insert("help", "Guiding Mode")
+            .insert(
+                "options",
+                Dictionary()
+                    .insert(
+                        "pathguiding",
+                        Dictionary()
+                            .insert("label", "Path Guiding")
+                            .insert("help", "Guide based on learned local radiance"))
+                    .insert(
+                        "productguiding",
+                        Dictionary()
+                            .insert("label", "Product Guiding")
+                            .insert("help", "Guide basedon approximated product between learned radiance and BSDF"))
+                    .insert(
+                        "combined",
+                        Dictionary()
+                            .insert("label", "Combined Path and Product Guiding")
+                            .insert("help", "Use a combination of path guiding and product guiding"))));
+
+    metadata.dictionaries().insert(
         "bsdf_sampling_fraction",
         Dictionary()
             .insert("type", "enum")
@@ -1229,7 +1269,18 @@ Dictionary GPTLightingEngineFactory::get_params_metadata()
             .insert("min", "0.0")
             .insert("max", "1.0")
             .insert("label", "Fixed BSDF Sampling Fraction")
-            .insert("help", "Ratio between BSDF sampling and SD-tree sampling"));
+            .insert("help", "Ratio between BSDF sampling and SD-tree (or product) sampling"));
+
+    metadata.dictionaries().insert(
+        "fixed_product_sampling_fraction_value",
+        Dictionary()
+            .insert("type", "float")
+            .insert("default", "0.5")
+            .insert("unlimited", "false")
+            .insert("min", "0.0")
+            .insert("max", "1.0")
+            .insert("label", "Fixed Product Sampling Fraction")
+            .insert("help", "Ratio between product sampling and SD-tree sampling"));
 
     metadata.dictionaries().insert(
         "learning_rate",

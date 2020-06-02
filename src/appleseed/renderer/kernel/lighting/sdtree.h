@@ -70,12 +70,6 @@ struct DTreeSample
     ScatteringMode::Mode                scattering_mode;
 };
 
-enum class GuidingMethod
-{
-    PathGuiding,
-    ProductGuiding
-};
-
 // The node type for the D-Tree.
 
 class QuadTreeNode
@@ -448,7 +442,7 @@ class GPTVertex
     float                               m_d_tree_pdf;
     float                               m_product_pdf;
     bool                                m_is_delta;
-    GuidingMethod                       m_guiding_method;
+    GuidingMode                         m_guiding_mode;
 };
 
 // A trail of guided path tracing vertices.

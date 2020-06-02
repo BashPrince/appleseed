@@ -23,6 +23,7 @@ namespace renderer
 {
 
 PathGuidedSampler::PathGuidedSampler(
+    GuidingMode                     guiding_mode,
     const bool                      enable_path_guiding,
     GuidedBounceMode                guided_bounce_mode,
     DTree*                          d_tree,
@@ -30,23 +31,31 @@ PathGuidedSampler::PathGuidedSampler(
     const void*                     bsdf_data,
     const int                       bsdf_sampling_modes,
     const ShadingPoint&             shading_point,
-    const bool                      sd_tree_is_built)
+    const bool                      sd_tree_is_built,
+    const float                     bsdf_sampling_fraction,
+    const Vector2f&                 product_sampling_fractions)
   : BSDFSampler(
       bsdf,
       bsdf_data,
       bsdf_sampling_modes,
       shading_point)
+  , m_guiding_mode(guiding_mode)
   , m_enable_path_guiding(enable_path_guiding)
   , m_d_tree(d_tree)
   , m_sd_tree_is_built(sd_tree_is_built)
   , m_guided_bounce_mode(guided_bounce_mode)
   , m_radiance_proxy(d_tree->get_radiance_proxy())
-  , m_guiding_method(GuidingMethod::PathGuiding)
+  , m_use_product_guiding(false)
+  , m_bsdf_sampling_fraction(bsdf_sampling_fraction)
+  , m_product_sampling_fractions(product_sampling_fractions)
 {
     assert(m_d_tree);
 
-    if (m_radiance_proxy.is_built() && m_bsdf.add_parameters_to_proxy(m_bsdf_proxy, bsdf_data, bsdf_sampling_modes))
-        m_guiding_method = GuidingMethod::ProductGuiding;
+    if ((m_guiding_mode == GuidingMode::ProductGuiding || m_guiding_mode == GuidingMode::Combined) &&
+        m_radiance_proxy.is_built() && m_bsdf.add_parameters_to_proxy(m_bsdf_proxy, bsdf_data, bsdf_sampling_modes))
+    {
+        m_use_product_guiding = true;
+    }
 }
 
 bool PathGuidedSampler::sample(
@@ -94,20 +103,16 @@ float PathGuidedSampler::evaluate(
         value);
 
     float bsdf_sampling_fraction, product_sampling_fraction, product_pdf;
+    set_sampling_fractions(bsdf_sampling_fraction, product_sampling_fraction);
     const float d_tree_pdf = m_d_tree->pdf(incoming, enable_modes_before_sampling(m_bsdf_sampling_modes));
 
-    if (m_guiding_method == GuidingMethod::ProductGuiding)
+    if (m_use_product_guiding)
     {
-        const Vector2f sampling_fractions = m_d_tree->bsdf_sampling_fraction_product();
-        bsdf_sampling_fraction = sampling_fractions.x;
-        product_sampling_fraction = sampling_fractions.y;
         m_radiance_proxy.build_product(m_bsdf_proxy, outgoing, m_local_geometry.m_shading_basis.get_normal());
         product_pdf = m_radiance_proxy.pdf(incoming);
     }
     else
     {
-        bsdf_sampling_fraction = m_d_tree->bsdf_sampling_fraction();
-        product_sampling_fraction = 0.0f;
         product_pdf = 0.0f;
     }
 
@@ -158,13 +163,8 @@ bool PathGuidedSampler::sample(
         return false;
     }
 
-    const Vector2f sampling_fractions = m_d_tree->bsdf_sampling_fraction_product();
-
-    const float bsdf_sampling_fraction = m_guiding_method == GuidingMethod::PathGuiding ?
-        m_d_tree->bsdf_sampling_fraction() : sampling_fractions.x;
-
-    const float product_sampling_fraction = m_guiding_method == GuidingMethod::ProductGuiding ?
-        sampling_fractions.y : 0.0f;
+    float bsdf_sampling_fraction, product_sampling_fraction;
+    set_sampling_fractions(bsdf_sampling_fraction, product_sampling_fraction);
 
     assert(bsdf_sampling_fraction >= 0.0f && bsdf_sampling_fraction <= 1.0f);
     assert(product_sampling_fraction >= 0.0f && product_sampling_fraction <= 1.0f);
@@ -194,7 +194,7 @@ bool PathGuidedSampler::sample(
             return false;
         }
 
-        if (m_guiding_method == GuidingMethod::ProductGuiding)
+        if (m_use_product_guiding)
         {
             m_radiance_proxy.build_product(m_bsdf_proxy, Vector3f(outgoing.get_value()), m_local_geometry.m_shading_basis.get_normal());
             product_pdf = m_radiance_proxy.pdf(bsdf_sample.m_incoming.get_value());
@@ -224,7 +224,7 @@ bool PathGuidedSampler::sample(
         
         DTreeSample d_tree_sample;
 
-        if (m_guiding_method == GuidingMethod::ProductGuiding)
+        if (m_use_product_guiding)
             m_radiance_proxy.build_product(m_bsdf_proxy, Vector3f(outgoing.get_value()), m_local_geometry.m_shading_basis.get_normal());
 
         if (s < product_sampling_fraction) // product guiding
@@ -237,7 +237,7 @@ bool PathGuidedSampler::sample(
         {
             m_d_tree->sample(sampling_context, d_tree_sample, enable_modes_before_sampling(m_bsdf_sampling_modes));
 
-            product_pdf = m_guiding_method == GuidingMethod::ProductGuiding ? m_radiance_proxy.pdf(d_tree_sample.direction) : 0.0f;
+            product_pdf = m_use_product_guiding ? m_radiance_proxy.pdf(d_tree_sample.direction) : 0.0f;
         }
 
         const ScatteringMode::Mode scattering_mode = set_mode_after_sampling(d_tree_sample.scattering_mode);
@@ -300,17 +300,6 @@ float PathGuidedSampler::guided_path_extension_pdf(
         return bsdf_pdf;
     }
 
-    // if (!d_tree_pdf_is_set)
-    // {
-    //     if (m_guiding_method == GuidingMethod::ProductGuiding)
-    //     {
-    //         m_radiance_proxy.build_product(m_bsdf_proxy, outgoing, m_local_geometry.m_shading_basis.get_normal());
-    //         d_tree_pdf = m_radiance_proxy.pdf(incoming);
-    //     }
-    //     else
-    //         d_tree_pdf = m_d_tree->pdf(incoming, enable_modes_before_sampling(m_bsdf_sampling_modes));
-    // }
-
     const float guided_mix_pdf = lerp(d_tree_pdf, product_pdf, product_sampling_fraction);
     return lerp(guided_mix_pdf, bsdf_pdf, bsdf_sampling_fraction);
 }
@@ -361,9 +350,33 @@ ScatteringMode::Mode PathGuidedSampler::set_mode_after_sampling(
     }
 }
 
-GuidingMethod PathGuidedSampler::guiding_method() const
+void PathGuidedSampler::set_sampling_fractions(
+    float&                          bsdf_sampling_fraction,
+    float&                          product_sampling_fraction) const
 {
-    return m_guiding_method;
+    if (m_guiding_mode == GuidingMode::Combined && m_use_product_guiding)
+    {
+        bsdf_sampling_fraction = m_product_sampling_fractions.x;
+        product_sampling_fraction = m_product_sampling_fractions.y;
+    }
+    else if (m_guiding_mode == GuidingMode::ProductGuiding && m_use_product_guiding)
+    {
+        bsdf_sampling_fraction = m_bsdf_sampling_fraction;
+        product_sampling_fraction = 1.0f;
+    }
+    else
+    {
+        bsdf_sampling_fraction = m_bsdf_sampling_fraction;
+        product_sampling_fraction = 0.0f;
+    }
+}
+
+GuidingMode PathGuidedSampler::guiding_mode() const
+{
+    if (m_guiding_mode == GuidingMode::Combined && m_use_product_guiding)
+        return GuidingMode::Combined;
+    else
+        return GuidingMode::PathGuiding;
 }
 
 }    //namespace renderer

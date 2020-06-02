@@ -20,6 +20,7 @@ class PathGuidedSampler
 {
   public:
     PathGuidedSampler(
+        const GuidingMode               guiding_mode,
         const bool                      enable_path_guiding,
         const GuidedBounceMode          guided_bounce_mode,
         DTree*                          d_tree,
@@ -27,7 +28,9 @@ class PathGuidedSampler
         const void*                     bsdf_data,
         const int                       bsdf_sampling_modes,
         const ShadingPoint&             shading_point,
-        const bool                      sd_tree_is_built);
+        const bool                      sd_tree_is_built,
+        const float                     bsdf_sampling_fraction,
+        const foundation::Vector2f&     product_sampling_fractions);
 
     bool sample(
         SamplingContext&                sampling_context,
@@ -50,7 +53,7 @@ class PathGuidedSampler
         const int                       light_sampling_modes,
         DirectShadingComponents&        value) const override;
     
-    GuidingMethod guiding_method() const;
+    GuidingMode guiding_mode() const;
 
   private:
     float guided_path_extension_pdf(
@@ -64,6 +67,10 @@ class PathGuidedSampler
 
     const int enable_modes_before_sampling(
         const int                       sample_modes) const;
+    
+    void set_sampling_fractions(
+        float&                          bsdf_sampling_fraction,
+        float&                          product_sampling_fraction) const;
 
     ScatteringMode::Mode set_mode_after_sampling(
         const ScatteringMode::Mode      sampled_mode) const;
@@ -71,10 +78,13 @@ class PathGuidedSampler
     DTree*                              m_d_tree;
     mutable RadianceProxy               m_radiance_proxy;
     mutable BSDFProxy                   m_bsdf_proxy;
-    GuidingMethod                       m_guiding_method;
+    const GuidingMode                   m_guiding_mode;
+    bool                                m_use_product_guiding;
     const bool                          m_sd_tree_is_built;
     const bool                          m_enable_path_guiding;
     const GuidedBounceMode              m_guided_bounce_mode;
+    const float                         m_bsdf_sampling_fraction;
+    const foundation::Vector2f          m_product_sampling_fractions;
 };
 
 }   // namespace render

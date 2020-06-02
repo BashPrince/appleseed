@@ -125,6 +125,29 @@ BSDFSamplingFractionMode get_bsdf_sampling_fraction_mode(const ParamArray& param
 	}
 }
 
+GuidingMode get_guiding_mode(const ParamArray& params)
+{
+	const std::string name = params.get_required<std::string>("guiding_mode", "combined");
+
+	if (name == "pathguiding")
+	{
+		return GuidingMode::PathGuiding;
+	}
+	else if (name == "productguiding")
+	{
+		return GuidingMode::ProductGuiding;
+	}
+	else if (name == "combined")
+	{
+		return GuidingMode::Combined;
+	}
+	else
+	{
+		RENDERER_LOG_WARNING("Unknown parameter for guiding mode");
+		return GuidingMode::Combined;
+	}
+}
+
 GuidedBounceMode get_guided_bounce_mode(const ParamArray& params)
 {
 	const std::string name = params.get_required<std::string>("guided_bounce_mode", "learn");
@@ -182,8 +205,10 @@ SaveMode get_save_mode(const ParamArray& params)
 GPTParameters::GPTParameters(const ParamArray& params)
   : m_samples_per_pass(params.get_optional<int>("samples_per_pass", 4))
   , m_fixed_bsdf_sampling_fraction(params.get_optional<float>("fixed_bsdf_sampling_fraction_value", 0.5f))
+  , m_fixed_product_sampling_fraction(params.get_optional<float>("fixed_product_sampling_fraction_value", 0.5f))
   , m_learning_rate(params.get_optional<float>("learning_rate", 0.01f))
   , m_bsdf_sampling_fraction_mode(get_bsdf_sampling_fraction_mode(params))
+  , m_guiding_mode(get_guiding_mode(params))
   , m_guided_bounce_mode(get_guided_bounce_mode(params))
   , m_save_mode(get_save_mode(params))
   , m_save_path(params.get_optional<std::string>("file_path", "none"))
@@ -233,6 +258,7 @@ void GPTParameters::print() const
 	case BSDFSamplingFractionMode::Fixed:
 		bsdf_mode_string += "Fixed\n";
 		bsdf_mode_string += "  fixed bsdf sampling fraction  " + pretty_scalar(m_fixed_bsdf_sampling_fraction, 2);
+		bsdf_mode_string += "\n  fixed product sampling fraction  " + pretty_scalar(m_fixed_product_sampling_fraction, 2);
 		break;
 	
 	case BSDFSamplingFractionMode::Learn:
@@ -296,6 +322,26 @@ void GPTParameters::print() const
 		break;
 	}
 
+	std::string guiding_mode_string;
+
+	switch (m_guiding_mode)
+	{
+	case GuidingMode::PathGuiding:
+		guiding_mode_string = "Path Guiding";
+		break;
+
+	case GuidingMode::ProductGuiding:
+		guiding_mode_string = "Product Guiding";
+		break;
+
+	case GuidingMode::Combined:
+		guiding_mode_string = "Combined";
+		break;
+	
+	default:
+		break;
+	}
+
 	std::string bounce_mode_string;
 
 	switch (m_guided_bounce_mode)
@@ -348,6 +394,7 @@ void GPTParameters::print() const
         "guided path tracer settings:\n"
         "  samples per pass              %s\n"
         "  iteration progression         %s\n"
+		"  guiding mode                  %s\n"
         "  %s\n"
         "  spatial filter                %s\n"
         "  directional filter            %s\n"
@@ -374,6 +421,7 @@ void GPTParameters::print() const
         "  clamp roughness               %s",
         pretty_uint(m_samples_per_pass).c_str(),
         iteration_progression_string.c_str(),
+        guiding_mode_string.c_str(),
         bsdf_mode_string.c_str(),
         spatial_filter_string.c_str(),
         directional_filter_string.c_str(),
