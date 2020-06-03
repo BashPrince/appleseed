@@ -21,7 +21,7 @@ class PathGuidedSampler
   public:
     PathGuidedSampler(
         const GuidingMode               guiding_mode,
-        const bool                      enable_path_guiding,
+        const bool                      allow_path_guiding,
         const GuidedBounceMode          guided_bounce_mode,
         DTree*                          d_tree,
         const BSDF&                     bsdf,
@@ -54,21 +54,40 @@ class PathGuidedSampler
     GuidingMode guiding_mode() const;
 
   private:
+    void simple_bsdf_bounce(
+        SamplingContext&                sampling_context,
+        BSDFSample&                     bsdf_sample,
+        const foundation::Dual3d&       outgoing,
+        float&                          wi_pdf,
+        float&                          d_tree_pdf,
+        float&                          product_pdf) const;
+
+    void guiding_aware_bsdf_bounce(
+        SamplingContext&                sampling_context,
+        BSDFSample&                     bsdf_sample,
+        const foundation::Dual3d&       outgoing,
+        float&                          wi_pdf,
+        float&                          d_tree_pdf,
+        float&                          product_pdf) const;
+
+    void guided_bounce(
+        SamplingContext&                sampling_context,
+        BSDFSample&                     bsdf_sample,
+        const foundation::Dual3d&       outgoing,
+        float&                          wi_pdf,
+        float&                          d_tree_pdf,
+        float&                          product_pdf,
+        const float                     s) const;
+
     float guided_path_extension_pdf(
         const foundation::Vector3f&     incoming,
         const foundation::Vector3f&     outgoing,
         const float                     bsdf_pdf,
         const float                     d_tree_pdf,
-        const float                     product_pdf,
-        const float                     bsdf_sampling_fraction,
-        const float                     product_sampling_fraction) const;
+        const float                     product_pdf) const;
 
     const int enable_modes_before_sampling(
         const int                       sample_modes) const;
-    
-    void set_sampling_fractions(
-        float&                          bsdf_sampling_fraction,
-        float&                          product_sampling_fraction) const;
 
     ScatteringMode::Mode set_mode_after_sampling(
         const ScatteringMode::Mode      sampled_mode) const;
@@ -77,12 +96,12 @@ class PathGuidedSampler
     mutable RadianceProxy               m_radiance_proxy;
     mutable BSDFProxy                   m_bsdf_proxy;
     const GuidingMode                   m_guiding_mode;
-    bool                                m_use_product_guiding;
     const bool                          m_sd_tree_is_built;
     const bool                          m_enable_path_guiding;
+    bool                                m_enable_product_guiding;
     const GuidedBounceMode              m_guided_bounce_mode;
-    const float                         m_bsdf_sampling_fraction;
-    const foundation::Vector2f          m_product_sampling_fractions;
+    float                               m_bsdf_sampling_fraction;
+    float                               m_product_sampling_fraction;
 };
 
 }   // namespace render
