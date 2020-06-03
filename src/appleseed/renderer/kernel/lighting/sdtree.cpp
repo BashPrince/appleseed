@@ -1272,9 +1272,15 @@ struct DTreeStatistics
       , min_sample_weight(std::numeric_limits<float>::max())
       , max_sample_weight(0.0f)
       , average_sample_weight(0.0f)
-      , min_sampling_fraction(std::numeric_limits<float>::max())
-      , max_sampling_fraction(0.0f)
-      , average_sampling_fraction(0.0f)
+      , min_bsdf_sampling_fraction(std::numeric_limits<float>::max())
+      , max_bsdf_sampling_fraction(0.0f)
+      , average_bsdf_sampling_fraction(0.0f)
+      , min_combined_bsdf_sampling_fraction(std::numeric_limits<float>::max())
+      , max_combined_bsdf_sampling_fraction(0.0f)
+      , average_combined_bsdf_sampling_fraction(0.0f)
+      , min_combined_product_sampling_fraction(std::numeric_limits<float>::max())
+      , max_combined_product_sampling_fraction(0.0f)
+      , average_combined_product_sampling_fraction(0.0f)
       , min_mean_radiance(std::numeric_limits<float>::max())
       , max_mean_radiance(0.0f)
       , average_mean_radiance(0.0f)
@@ -1295,9 +1301,15 @@ struct DTreeStatistics
     float                               min_sample_weight;
     float                               max_sample_weight;
     float                               average_sample_weight;
-    float                               min_sampling_fraction;
-    float                               max_sampling_fraction;
-    float                               average_sampling_fraction;
+    float                               min_bsdf_sampling_fraction;
+    float                               max_bsdf_sampling_fraction;
+    float                               average_bsdf_sampling_fraction;
+    float                               min_combined_bsdf_sampling_fraction;
+    float                               max_combined_bsdf_sampling_fraction;
+    float                               average_combined_bsdf_sampling_fraction;
+    float                               min_combined_product_sampling_fraction;
+    float                               max_combined_product_sampling_fraction;
+    float                               average_combined_product_sampling_fraction;
     float                               min_mean_radiance;
     float                               max_mean_radiance;
     float                               average_mean_radiance;
@@ -1319,7 +1331,9 @@ struct DTreeStatistics
         average_mean_radiance /= num_d_trees;
         average_sample_weight /= num_d_trees;
         glossy_d_tree_fraction /= num_d_trees;
-        average_sampling_fraction /= num_d_trees;
+        average_bsdf_sampling_fraction /= num_d_trees;
+        average_combined_bsdf_sampling_fraction /= num_d_trees;
+        average_combined_product_sampling_fraction /= num_d_trees;
     }
 };
 
@@ -1501,9 +1515,17 @@ void STreeNode::gather_statistics(
             statistics.glossy_d_tree_fraction += 1.0f;
         
         const float bsdf_sampling_fraction = m_d_tree->bsdf_sampling_fraction();
-        statistics.min_sampling_fraction = std::min(statistics.min_sampling_fraction, bsdf_sampling_fraction);
-        statistics.max_sampling_fraction = std::max(statistics.max_sampling_fraction, bsdf_sampling_fraction);
-        statistics.average_sampling_fraction += bsdf_sampling_fraction;
+        statistics.min_bsdf_sampling_fraction = std::min(statistics.min_bsdf_sampling_fraction, bsdf_sampling_fraction);
+        statistics.max_bsdf_sampling_fraction = std::max(statistics.max_bsdf_sampling_fraction, bsdf_sampling_fraction);
+        statistics.average_bsdf_sampling_fraction += bsdf_sampling_fraction;
+
+        const Vector2f product_sampling_fractions = m_d_tree->bsdf_sampling_fraction_product();
+        statistics.min_combined_bsdf_sampling_fraction = std::min(statistics.min_combined_bsdf_sampling_fraction, product_sampling_fractions.x);
+        statistics.max_combined_bsdf_sampling_fraction = std::max(statistics.max_combined_bsdf_sampling_fraction, product_sampling_fractions.x);
+        statistics.average_combined_bsdf_sampling_fraction +=product_sampling_fractions.x;
+        statistics.min_combined_product_sampling_fraction = std::min(statistics.min_combined_product_sampling_fraction, product_sampling_fractions.y);
+        statistics.max_combined_product_sampling_fraction = std::max(statistics.max_combined_product_sampling_fraction, product_sampling_fractions.y);
+        statistics.average_combined_product_sampling_fraction += product_sampling_fractions.y;
 
         statistics.max_s_tree_depth = std::max(statistics.max_s_tree_depth, depth);
         statistics.min_s_tree_depth = std::min(statistics.min_s_tree_depth, depth);
@@ -1669,16 +1691,18 @@ void STree::build(
     RENDERER_LOG_INFO(
         "SD-Tree statistics: [min, max, avg]\n"
         "S-Tree:\n"
-        "  Node Count                   = %s\n"
-        "  S-Tree depth                 = [%s, %s, %s]\n"
+        "  Node Count                           = %s\n"
+        "  S-Tree depth                         = [%s, %s, %s]\n"
         "D-Tree:\n"
-        "  Tree Count                   = %s\n"
-        "  Node Count                   = [%s, %s, %s]\n"
-        "  D-Tree Depth                 = [%s, %s, %s]\n"
-        "  Mean Radiance                = [%s, %s, %s]\n"
-        "  Sample Weight                = [%s, %s, %s]\n"
-        "  BSDF Sampling Fraction       = [%s, %s, %s]\n"
-        "  Glossy D-Tree Fraction       = %s\n",
+        "  Tree Count                           = %s\n"
+        "  Node Count                           = [%s, %s, %s]\n"
+        "  D-Tree Depth                         = [%s, %s, %s]\n"
+        "  Mean Radiance                        = [%s, %s, %s]\n"
+        "  Sample Weight                        = [%s, %s, %s]\n"
+        "  Single BSDF Sampling Fraction        = [%s, %s, %s]\n"
+        "  Combined BSDF Sampling Fraction      = [%s, %s, %s]\n"
+        "  Combined Product Sampling Fraction   = [%s, %s, %s]\n"
+        "  Glossy D-Tree Fraction               = %s\n",
         pretty_uint(statistics.num_s_tree_nodes).c_str(),
         pretty_uint(statistics.min_s_tree_depth).c_str(),
         pretty_uint(statistics.max_s_tree_depth).c_str(),
@@ -1696,9 +1720,15 @@ void STree::build(
         pretty_scalar(statistics.min_sample_weight, 3).c_str(),
         pretty_scalar(statistics.max_sample_weight, 3).c_str(),
         pretty_scalar(statistics.average_sample_weight, 3).c_str(),
-        pretty_scalar(statistics.min_sampling_fraction, 3).c_str(),
-        pretty_scalar(statistics.max_sampling_fraction, 3).c_str(),
-        pretty_scalar(statistics.average_sampling_fraction, 3).c_str(),
+        pretty_scalar(statistics.min_bsdf_sampling_fraction, 3).c_str(),
+        pretty_scalar(statistics.max_bsdf_sampling_fraction, 3).c_str(),
+        pretty_scalar(statistics.average_bsdf_sampling_fraction, 3).c_str(),
+        pretty_scalar(statistics.min_combined_bsdf_sampling_fraction, 3).c_str(),
+        pretty_scalar(statistics.max_combined_bsdf_sampling_fraction, 3).c_str(),
+        pretty_scalar(statistics.average_combined_bsdf_sampling_fraction, 3).c_str(),
+        pretty_scalar(statistics.min_combined_product_sampling_fraction, 3).c_str(),
+        pretty_scalar(statistics.max_combined_product_sampling_fraction, 3).c_str(),
+        pretty_scalar(statistics.average_combined_product_sampling_fraction, 3).c_str(),
         pretty_scalar(statistics.glossy_d_tree_fraction, 3).c_str());
 
     m_is_built = true;

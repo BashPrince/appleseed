@@ -244,7 +244,6 @@ class DTree
     float mean() const;
     float bsdf_sampling_fraction() const;
     foundation::Vector2f bsdf_sampling_fraction_product() const;
-    foundation::Vector2f bsdf_sampling_fraction_product_no_lock() const;
     ScatteringMode::Mode get_scattering_mode() const;
 
     void write_to_disk(
@@ -256,6 +255,7 @@ class DTree
     const RadianceProxy& get_radiance_proxy() const;
 
   private:
+    foundation::Vector2f bsdf_sampling_fraction_product_no_lock() const;
     void acquire_optimization_spin_lock() const;
     void release_optimization_spin_lock() const;
     void acquire_optimization_spin_lock_product() const;
