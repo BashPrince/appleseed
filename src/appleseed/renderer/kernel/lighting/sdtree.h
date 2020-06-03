@@ -244,6 +244,7 @@ class DTree
     float mean() const;
     float bsdf_sampling_fraction() const;
     foundation::Vector2f bsdf_sampling_fraction_product() const;
+    foundation::Vector2f bsdf_sampling_fraction_product_no_lock() const;
     ScatteringMode::Mode get_scattering_mode() const;
 
     void write_to_disk(
@@ -255,10 +256,10 @@ class DTree
     const RadianceProxy& get_radiance_proxy() const;
 
   private:
-    void acquire_optimization_spin_lock();
-    void release_optimization_spin_lock();
-    void acquire_optimization_spin_lock_product();
-    void release_optimization_spin_lock_product();
+    void acquire_optimization_spin_lock() const;
+    void release_optimization_spin_lock() const;
+    void acquire_optimization_spin_lock_product() const;
+    void release_optimization_spin_lock_product() const;
 
     // Perform an bsdf sampling fraction optimization step.
     void optimization_step(
@@ -280,13 +281,13 @@ class DTree
     ScatteringMode::Mode                m_scattering_mode;
 
     // BSDF sampling fraction optimization variables.
-    std::atomic_flag                    m_atomic_flag;
+    mutable std::atomic_flag            m_atomic_flag;
     size_t                              m_optimization_step_count;
     float                               m_first_moment;
     float                               m_second_moment;
     float                               m_theta;
 
-    std::atomic_flag                    m_atomic_flag_product;
+    mutable std::atomic_flag            m_atomic_flag_product;
     size_t                              m_optimization_step_count_product;
     foundation::Vector2f                m_first_moment_product;
     foundation::Vector2f                m_second_moment_product;

@@ -80,7 +80,7 @@ void atomic_add(
         ;
 }
 
-inline float logistic(float x)
+inline float logistic(const float x)
 {
     return 1.0f / (1.0f + std::exp(-x));
 }
@@ -1095,32 +1095,56 @@ float DTree::bsdf_sampling_fraction() const
 Vector2f DTree::bsdf_sampling_fraction_product() const
 {
     if(m_parameters.m_bsdf_sampling_fraction_mode == BSDFSamplingFractionMode::Learn)
+    {
+        // Lock for a consistent state of the variables.
+        acquire_optimization_spin_lock_product();
+
+        const Vector2f sampling_fractions(
+            logistic(m_theta_product.x),
+            logistic(m_theta_product.y));
+
+        release_optimization_spin_lock_product();
+
+        return sampling_fractions;
+    }
+    else
+    {
         return Vector2f(
-            logistic(m_theta_product.x), logistic(m_theta_product.y));
+            m_parameters.m_fixed_bsdf_sampling_fraction,
+            m_parameters.m_fixed_product_sampling_fraction);
+    }
+}
+
+Vector2f DTree::bsdf_sampling_fraction_product_no_lock() const
+{
+    if(m_parameters.m_bsdf_sampling_fraction_mode == BSDFSamplingFractionMode::Learn)
+        return Vector2f(
+            logistic(m_theta_product.x),
+            logistic(m_theta_product.y));
     else
         return Vector2f(
             m_parameters.m_fixed_bsdf_sampling_fraction,
             m_parameters.m_fixed_product_sampling_fraction);
 }
 
-void DTree::acquire_optimization_spin_lock()
+void DTree::acquire_optimization_spin_lock() const
 {
     while(m_atomic_flag.test_and_set(std::memory_order_acquire))
         ;
 }
 
-void DTree::release_optimization_spin_lock()
+void DTree::release_optimization_spin_lock() const
 {
     m_atomic_flag.clear(std::memory_order_release);
 }
 
-void DTree::acquire_optimization_spin_lock_product()
+void DTree::acquire_optimization_spin_lock_product() const
 {
     while(m_atomic_flag_product.test_and_set(std::memory_order_acquire))
         ;
 }
 
-void DTree::release_optimization_spin_lock_product()
+void DTree::release_optimization_spin_lock_product() const
 {
     m_atomic_flag_product.clear(std::memory_order_release);
 }
@@ -1171,8 +1195,9 @@ void DTree::optimization_step_product(
     const DTreeRecord&                  d_tree_record)
 {
     acquire_optimization_spin_lock_product();
+    
+    const Vector2f sampling_fraction = bsdf_sampling_fraction_product_no_lock();
 
-    const Vector2f sampling_fraction = bsdf_sampling_fraction_product();
     const float combined_pdf = sampling_fraction.x * d_tree_record.bsdf_pdf +
                                (1.0f - sampling_fraction.x) * (sampling_fraction.y * d_tree_record.d_tree_pdf +
                                (1.0f - sampling_fraction.y) * d_tree_record.product_pdf);
