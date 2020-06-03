@@ -415,9 +415,7 @@ namespace
             void on_scatter(
                 PathVertex&                 vertex,
                 GPTVertexPath&              guided_path,
-                const float                 bsdf_sampling_fraction,
-                const Vector2f&             product_sampling_fraction,
-                const bool                  enable_path_guiding)
+                const PathGuidedSampler&    path_guided_sampler)
             {
                 // When caustics are disabled, disable glossy and specular components after a diffuse or volume bounce.
                 // Note that accept_scattering() is later going to return false in this case.
@@ -563,9 +561,7 @@ namespace
             void on_scatter(
                 PathVertex&                 vertex,
                 GPTVertexPath&              guided_path,
-                const float                 bsdf_sampling_fraction,
-                const Vector2f&             product_sampling_fraction,
-                const bool                  enable_path_guiding)
+                const PathGuidedSampler&    path_guided_sampler)
             {
                 assert(vertex.m_scattering_modes != ScatteringMode::None);
 
@@ -620,9 +616,7 @@ namespace
                             vertex.m_scattering_modes,
                             vertex_radiance,
                             m_light_path_stream,
-                            bsdf_sampling_fraction,
-                            product_sampling_fraction,
-                            enable_path_guiding);
+                            path_guided_sampler);
                     }
                 }
 
@@ -639,9 +633,7 @@ namespace
                             vertex.m_scattering_modes,
                             vertex_radiance,
                             m_light_path_stream,
-                            bsdf_sampling_fraction,
-                            product_sampling_fraction,
-                            enable_path_guiding);
+                            path_guided_sampler);
                     }
                 }
 
@@ -695,9 +687,7 @@ namespace
                 const int                   scattering_modes,
                 DirectShadingComponents&    vertex_radiance,
                 LightPathStream*            light_path_stream,
-                const float                 bsdf_sampling_fraction,
-                const Vector2f&             product_sampling_fraction,
-                const bool                  enable_path_guiding)
+                const PathGuidedSampler&    path_guided_sampler)
             {
                 DirectShadingComponents dl_radiance;
 
@@ -708,19 +698,6 @@ namespace
 
                 if (light_sample_count == 0)
                     return;
-
-                const PathGuidedSampler path_guided_sampler(
-                    m_params.m_guiding_mode,
-                    enable_path_guiding,
-                    m_params.m_guided_bounce_mode,
-                    m_sd_tree->get_d_tree(foundation::Vector3f(shading_point.get_point())),
-                    bsdf,
-                    bsdf_data,
-                    scattering_modes,       // bsdf_sampling_modes (unused)
-                    shading_point,
-                    m_sd_tree->is_built(),
-                    bsdf_sampling_fraction,
-                    product_sampling_fraction);
 
                 // This path will be extended via BSDF sampling: sample the lights only.
                 const DirectLightingIntegrator integrator(
@@ -756,9 +733,7 @@ namespace
                 const int                   scattering_modes,
                 DirectShadingComponents&    vertex_radiance,
                 LightPathStream*            light_path_stream,
-                const float                 bsdf_sampling_fraction,
-                const Vector2f&             product_sampling_fraction,
-                const bool                  enable_path_guiding)
+                const PathGuidedSampler&    path_guided_sampler)
             {
                 DirectShadingComponents ibl_radiance;
 
@@ -766,19 +741,6 @@ namespace
                     stochastic_cast<size_t>(
                         m_sampling_context,
                         m_params.m_ibl_env_sample_count);
-
-                const PathGuidedSampler path_guided_sampler(
-                    m_params.m_guiding_mode,
-                    enable_path_guiding,
-                    m_params.m_guided_bounce_mode,
-                    m_sd_tree->get_d_tree(foundation::Vector3f(shading_point.get_point())),
-                    bsdf,
-                    bsdf_data,
-                    scattering_modes, // bsdf_sampling_modes (unused)
-                    shading_point,
-                    m_sd_tree->is_built(),
-                    bsdf_sampling_fraction,
-                    product_sampling_fraction);
 
                 // This path will be extended via BSDF sampling: sample the environment only.
                 compute_ibl_environment_sampling(
